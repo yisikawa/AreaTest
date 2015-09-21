@@ -1,0 +1,184 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+//#include "afxres.h"
+#include <windows.h>
+#define IDC_STATIC -1
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Japanese (Japan) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+#pragma code_page(932)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_MENU1 MENUEX
+BEGIN
+    POPUP "ファイル(&F)",                       65535,MFT_STRING,MFS_ENABLED
+    BEGIN
+        MENUITEM "SAVE MQO",                    ID_MNU_META,MFT_STRING,MFS_ENABLED
+        MENUITEM "SAVE MQO2",                   ID_MNU_EFFT,MFT_STRING | MFT_RIGHTORDER | MFT_RIGHTJUSTIFY,MFS_ENABLED
+        MENUITEM "終了(&X)",                      ID_MNU_EXIT,MFT_STRING,MFS_ENABLED
+    END
+    POPUP "オプション(&O)",                      65535,MFT_STRING,MFS_ENABLED
+    BEGIN
+        POPUP "ウィンドウサイズ",                       65535,MFT_STRING,MFS_ENABLED
+        BEGIN
+            MENUITEM "320 X 240(&0)",               ID_MNU_W320,MFT_STRING,MFS_ENABLED
+            MENUITEM "640 X 480 (&1)",              ID_MNU_W640,MFT_STRING,MFS_ENABLED
+            MENUITEM "800 X 600 (&2)",              ID_MNU_W800,MFT_STRING,MFS_ENABLED
+            MENUITEM "1024 X 768 (&3)",             ID_MNU_W1024,MFT_STRING,MFS_ENABLED
+            MENUITEM "1280 X 1024(&4)",             ID_MNU_W1280,MFT_STRING,MFS_ENABLED
+            MENUITEM "1600 X 1200 (&5)",            ID_MNU_W1600,MFT_STRING,MFS_ENABLED
+        END
+        MENUITEM "エリア",                         ID_MNU_OASPD,MFT_STRING,MFS_ENABLED
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_ICON1               ICON                    "icon1.ico"
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_DIALOG1 DIALOGEX 5, 25, 147, 123
+STYLE DS_SETFONT | DS_MODALFRAME | DS_SETFOREGROUND | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "エリア"
+FONT 8, "ＭＳ Ｐゴシック", 400, 0, 0x80
+BEGIN
+    COMBOBOX        IDC_COMBO1,36,44,103,243,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_COMBO2,36,60,103,243,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    RTEXT           "ｴﾘｱ選択",IDC_STATIC,7,46,27,9
+    COMBOBOX        IDC_COMBO3,35,14,104,243,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    RTEXT           "PC明度",IDC_STATIC,7,17,25,9
+    COMBOBOX        IDC_COMBO4,36,28,103,243,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    RTEXT           "ｴﾘｱ明度",IDC_STATIC,7,30,27,9
+    RTEXT           "ｴﾘｱ表示",IDC_STATIC,7,63,27,10
+    COMBOBOX        IDC_COMBO5,36,76,103,243,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    RTEXT           "建物表",IDC_STATIC,15,78,22,10
+    COMBOBOX        IDC_COMBO6,36,94,103,243,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    RTEXT           "天候表",IDC_STATIC,15,95,22,10
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_DIALOG1, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 140
+        TOPMARGIN, 6
+        BOTTOMMARGIN, 117
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,1
+ PRODUCTVERSION 1,0,0,1
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041104b0"
+        BEGIN
+            VALUE "CompanyName", "HOME"
+            VALUE "FileDescription", "ewhModel"
+            VALUE "FileVersion", "1, 0, 0, 1"
+            VALUE "InternalName", "ewhModel"
+            VALUE "LegalCopyright", "Copyright (C) 2004"
+            VALUE "OriginalFilename", "ewhModel.exe"
+            VALUE "ProductName", "HOME ewhModel"
+            VALUE "ProductVersion", "1, 0, 0, 1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x411, 1200
+    END
+END
+
+#endif    // Japanese (Japan) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
