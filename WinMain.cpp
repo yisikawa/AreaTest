@@ -197,9 +197,7 @@ void BackAt( void )
 }
 
 //======================================================================
-//
 //		WinMain関数
-//
 //======================================================================
 int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
 {
@@ -329,7 +327,6 @@ int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
 
 			// バックバッファと Z バッファをクリア
 			GetDevice()->Clear( 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER| D3DCLEAR_STENCIL, D3DCOLOR_XRGB(200,200,255), 1.f, 0 );
-//			GetDevice()->Clear( 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0 );
 			// シーン開始
 			if SUCCEEDED( GetDevice()->BeginScene() ) {
 				// 各種処理

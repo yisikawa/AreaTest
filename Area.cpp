@@ -553,9 +553,9 @@ CArea::CArea()
 	m_hVertexShader			= NULL;
 	m_Textures.Init();
 	D3DXMatrixIdentity( &m_mRootTransform );
-	//m_mRootTransform		*= matrixMirrorY;
+	m_mRootTransform		*= matrixMirrorY;
 	//m_mRootTransform *= matrixMirrorZ;
-	D3DXMatrixRotationZ(&m_mRootTransform,PAI);
+	//D3DXMatrixRotationZ(&m_mRootTransform,PAI);
 	m_pObjInfo = NULL;
 	m_nObj					= 0;
 
@@ -956,7 +956,7 @@ unsigned long CArea::Rendering( float PosX, float PosY, float PosZ )
 	// ピクセルシェーダー設定
 	//---------------------------------------------------------
 	GetDevice()->SetPixelShader( NULL );
-	mPlate = g_mAt - g_mEye;D3DXVec3Normalize(&mPlate,&mPlate);
+	//mPlate = g_mAt - g_mEye;D3DXVec3Normalize(&mPlate,&mPlate);
 	GetDevice()->SetRenderState( D3DRS_FOGENABLE,			TRUE );
 	GetDevice()->SetRenderState( D3DRS_ALPHABLENDENABLE,	FALSE );
 	GetDevice()->SetRenderState( D3DRS_STENCILENABLE,		FALSE );
@@ -972,21 +972,22 @@ unsigned long CArea::Rendering( float PosX, float PosY, float PosZ )
 	//---------------------------------------------------------
 	GetDevice()->SetTransform(D3DTS_VIEW, &g_mView);
 	GetDevice()->SetTransform(D3DTS_PROJECTION, &g_mProjection);
-	GetDevice()->SetVertexShaderConstantF(5, (float*)&g_mEye, 1);
 	GetDevice()->SetSoftwareVertexProcessing(g_mIsUseSoftware);
-//	GetDevice()->LightEnable(0, TRUE);
+	//GetDevice()->LightEnable(0, FALSE);
+	//GetDevice()->SetRenderState(D3DRS_LIGHTING, FALSE);   // 発電所を回す！
 	// 変換行列
 	D3DXMATRIX mTransform = g_mView * g_mProjection;
 	D3DXMatrixTranspose(&mTransform, &mTransform);
-	GetDevice()->SetVertexShaderConstantF(6, (float*)&mTransform, 4);
 	// ライトの方向を変換
 	D3DXVECTOR4 LightDir(-g_mLight.Direction.x, -g_mLight.Direction.y, -g_mLight.Direction.z, 0.7f);
-	GetDevice()->SetVertexShaderConstantF(4, (float*)&LightDir, 1);
 
 	IDirect3DVertexDeclaration9	*VertexFormat;
-//	GetDevice()->SetVertexShader( NULL );
+	//GetDevice()->SetVertexShader( NULL );
 	GetDevice()->SetVertexShader(m_hVertexShader);
 	GetDevice()->SetVertexDeclaration(m_VertexFormat);
+	GetDevice()->SetVertexShaderConstantF(5, (float*)&g_mEye, 1);
+	GetDevice()->SetVertexShaderConstantF(4, (float*)&LightDir, 1);
+	GetDevice()->SetVertexShaderConstantF(6, (float*)&mTransform, 4);
 
 	//------------------------------------------------------
 	// 各Area 1のレンダリング
@@ -1017,42 +1018,6 @@ unsigned long CArea::Rendering( float PosX, float PosY, float PosZ )
 		if( Max4(BL.x,BH.x,BL2.x,BH2.x)<PosX-DispArea ) continue;
 		if( Min4(BL.z,BH.z,BL2.z,BH2.z)>PosZ+DispArea ) continue;
 		if( Max4(BL.z,BH.z,BL2.z,BH2.z)<PosZ-DispArea ) continue;
-		bool OutFlag = true;
-		float val;
-		D3DXVECTOR3 TempVec;
-		TempVec.x = BL.x; TempVec.y = BL.y;  TempVec.z = BL.z;
-		val = mPlate.x*(TempVec.x - g_mEye.x)+mPlate.y*(TempVec.y - g_mEye.y)+
-			        mPlate.z*(TempVec.z - g_mEye.z);
-		if( val>=0.f ) OutFlag = false;
-		TempVec.x = BH.x; TempVec.y = BH.y;  TempVec.z = BH.z;
-		val = mPlate.x*(TempVec.x - g_mEye.x)+mPlate.y*(TempVec.y - g_mEye.y)+
-			        mPlate.z*(TempVec.z - g_mEye.z);
-		if( val>=0.f ) OutFlag = false;
-		TempVec.x = BL2.x; TempVec.y = BL2.y;  TempVec.z = BL2.z;
-		val = mPlate.x*(TempVec.x - g_mEye.x)+mPlate.y*(TempVec.y - g_mEye.y)+
-			        mPlate.z*(TempVec.z - g_mEye.z);
-		if( val>=0.f ) OutFlag = false;
-		TempVec.x = BL3.x; TempVec.y = BL3.y;  TempVec.z = BL3.z;
-		val = mPlate.x*(TempVec.x - g_mEye.x)+mPlate.y*(TempVec.y - g_mEye.y)+
-			        mPlate.z*(TempVec.z - g_mEye.z);
-		if( val>=0.f ) OutFlag = false;
-		TempVec.x = BL4.x; TempVec.y = BL4.y;  TempVec.z = BL4.z;
-		val = mPlate.x*(TempVec.x - g_mEye.x)+mPlate.y*(TempVec.y - g_mEye.y)+
-			        mPlate.z*(TempVec.z - g_mEye.z);
-		if( val>=0.f ) OutFlag = false;
-		TempVec.x = BH2.x; TempVec.y = BH2.y;  TempVec.z = BH2.z;
-		val = mPlate.x*(TempVec.x - g_mEye.x)+mPlate.y*(TempVec.y - g_mEye.y)+
-			        mPlate.z*(TempVec.z - g_mEye.z);
-		if( val>=0.f ) OutFlag = false;
-		TempVec.x = BH3.x; TempVec.y = BH3.y;  TempVec.z = BH3.z;
-		val = mPlate.x*(TempVec.x - g_mEye.x)+mPlate.y*(TempVec.y - g_mEye.y)+
-			        mPlate.z*(TempVec.z - g_mEye.z);
-		if( val>=0.f ) OutFlag = false;
-		TempVec.x = BH4.x; TempVec.y = BH4.y;  TempVec.z = BH4.z;
-		val = mPlate.x*(TempVec.x - g_mEye.x)+mPlate.y*(TempVec.y - g_mEye.y)+
-			        mPlate.z*(TempVec.z - g_mEye.z);
-		if( val>=0.f ) OutFlag = false;
-		if( OutFlag ) continue;
 		
 		//---------------------------------------------------------
 		// 頂点バッファをデバイスに設定
@@ -1080,9 +1045,9 @@ unsigned long CArea::Rendering( float PosX, float PosY, float PosZ )
 				GetDevice()->SetRenderState( D3DRS_CULLMODE,		D3DCULL_NONE );
 			} else {
 				if( (m_pObjInfo[i].mObj.fScaleX*m_pObjInfo[i].mObj.fScaleZ)<0.f )
-					GetDevice()->SetRenderState( D3DRS_CULLMODE,	D3DCULL_CCW );
-				else
 					GetDevice()->SetRenderState( D3DRS_CULLMODE,	D3DCULL_CW );
+				else
+					GetDevice()->SetRenderState( D3DRS_CULLMODE,	D3DCULL_CCW );
 			}
 			CTexture *pTexture = (CTexture*)its->GetpTexture();
 			if( (its->GetAlphaFlag() & 0x08) || its->GetStencilFlag() ) {
@@ -1170,10 +1135,11 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 	int				cnt,nVer, nFace,idxmin,idxmax;
 	int				i1, i2, i3, t1, t2, t3;
 	CAreaMesh		*pAreaMesh;
-	D3DXMATRIX		AreaMatrix;
+	D3DXMATRIX		RootMatrix,AreaMatrix;
 	float			DispArea;
 	D3DXVECTOR3		BL, BL2, BL3, BL4, BH, BH2, BH3, BH4;
 
+	D3DXMatrixRotationZ(&RootMatrix, PAI);
 	if ((ptr = strrstr(FPath, FName))) *ptr = '\0';
 	if ((ptr = strrstr(FName, ".mqo"))) *ptr = '\0';
 	sprintf(path, "%s%s.mqo", FPath, FName);
@@ -1214,7 +1180,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 		}
 		if ((pAreaMesh = m_pObjInfo[num].pAreaMesh) == NULL) continue;
 		AreaMatrix = m_pObjInfo[num].mMat;
-		D3DXMatrixMultiply(&AreaMatrix, &AreaMatrix, &m_mRootTransform);
+		D3DXMatrixMultiply(&AreaMatrix, &AreaMatrix, &RootMatrix);
 		BL = pAreaMesh->GetBoxLow();
 		BH = pAreaMesh->GetBoxHigh();
 		BL2.x = BL.x; BL2.y = BL.y; BL2.z = BH.z;
@@ -1357,10 +1323,11 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 	int				cnt, nVer, nFace, idxmin, idxmax;
 	int				i1, i2, i3, t1, t2, t3;
 	CAreaMesh		*pAreaMesh;
-	D3DXMATRIX		AreaMatrix;
+	D3DXMATRIX		RootMatrix,AreaMatrix;
 	float			DispArea;
 	D3DXVECTOR3		BL, BL2, BL3, BL4, BH, BH2, BH3, BH4;
 
+	D3DXMatrixRotationZ(&RootMatrix, PAI);
 	if ((ptr = strrstr(FPath, FName))) *ptr = '\0';
 	if ((ptr = strrstr(FName, ".mqo"))) *ptr = '\0';
 	sprintf(path, "%s%s.mqo", FPath, FName);
@@ -1392,7 +1359,7 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 		texNo++;
 	}
 	fprintf(fd, "}\n");
-	AreaMatrix = m_mRootTransform;
+	AreaMatrix = RootMatrix;
 	pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
 	while (pAreaMesh) {
 		ptr = pAreaMesh->GetAreaName();
