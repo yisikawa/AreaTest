@@ -48,8 +48,8 @@ HWND hWindow;			// ウィンドウハンドル
 HWND hDlg1;			// ダイアログ１
 
 unsigned long Polygons;
-float		g_mDispArea =	25.f;
-float		g_mDispTree =	25.f;
+float		g_mDispArea =	500.f;
+float		g_mDispTree =	500.f;
 D3DXVECTOR3	g_mEntry(0.f,0.f,0.f);
 int			g_mDispValue=0;
 int			g_mAreaBright=1;
@@ -67,12 +67,10 @@ char		g_mWeather[6]="suny";
 // Disp Range
 
 static const	LPCTSTR		ListRange[] = {
-" 25 m,  近近距離表示",
-" 75 m,  近距離表示",
-"150 m,近中距離表示",
-"300 m,  中距離表示",
-"400 m,中遠距離表示",
-"500 m,  遠距離表示"
+" 25 m, Near",
+" 75 m, Short-range",
+"300 m, medium-range",
+"500 m, long distance"
 };
 
 // 天候　表示
@@ -381,10 +379,10 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 				fclose(fd);
 				NumListArea = i;
 			}
-			for( i=0 ; i<3 ; i++ ) {     
-		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListBright[i]);
-			}
-		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)g_mAreaBright, 0L);
+			//for( i=0 ; i<3 ; i++ ) {     
+		 //       SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListBright[i]);
+			//}
+		    //SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)g_mAreaBright, 0L);
 			for( i=0 ; i<NumListArea ; i++ ) { 
 				int	w5,w6,w7;
 				sscanf(ListArea[i],"%d-%d-%d,%d,%d,%d,%s",&w1,&w2,&w3,&w5,&w6,&w7,ww);
@@ -392,18 +390,18 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ComboString);
 			}
 		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_SETCURSEL, (WPARAM)0, 0L);
-			for( i=0 ; i<6 ; i++ ) {     
+			for( i=0 ; i<4 ; i++ ) {     
 		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO2), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListRange[i]);
 			}
-		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO2), CB_SETCURSEL, (WPARAM)0, 0L);
- 			for( i=0 ; i<6 ; i++ ) {     
+		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO2), CB_SETCURSEL, (WPARAM)3, 0L);
+ 			for( i=0 ; i<4 ; i++ ) {     
 		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListRange[i]);
 			}
-		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_SETCURSEL, (WPARAM)0, 0L);
-  			for( i=0 ; i<7 ; i++ ) {     
-		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO6), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListWeather[i]);
-			}
-		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO6), CB_SETCURSEL, (WPARAM)0, 0L);
+		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_SETCURSEL, (WPARAM)3, 0L);
+  	//		for( i=0 ; i<7 ; i++ ) {     
+		 //       SendMessage(GetDlgItem(in_hWnd, IDC_COMBO6), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListWeather[i]);
+			//}
+		 //   SendMessage(GetDlgItem(in_hWnd, IDC_COMBO6), CB_SETCURSEL, (WPARAM)0, 0L);
 			SetFocus(GetDlgItem(in_hWnd, IDC_COMBO1));
             break;
         case WM_HSCROLL:
