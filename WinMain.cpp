@@ -12,7 +12,7 @@
 
 #pragma comment(lib,"comdlg32.lib")
 
-
+#define LIST_LIMIT 60
 //======================================================================
 // PROTOTYPE
 //======================================================================
@@ -48,8 +48,8 @@ HWND hWindow;			// ウィンドウハンドル
 HWND hDlg1;			// ダイアログ１
 
 unsigned long Polygons;
-float		g_mDispArea =	500.f;
-float		g_mDispTree =	500.f;
+float		g_mDispArea =	150.f;
+float		g_mDispTree =	150.f;
 D3DXVECTOR3	g_mEntry(0.f,0.f,0.f);
 int			g_mDispValue=0;
 int			g_mAreaBright=1;
@@ -69,8 +69,7 @@ char		g_mWeather[6]="suny";
 static const	LPCTSTR		ListRange[] = {
 " 25 m, Near",
 " 75 m, Short-range",
-"300 m, medium-range",
-"500 m, long distance"
+"150 m, medium-range"
 };
 
 // 天候　表示
@@ -144,13 +143,13 @@ void	MoveAt( void )
 
 	Pos = g_mAt - g_mEye;
 	D3DXVec3Normalize(&Pos,&Pos);
-	if( GetKeyState(VK_CONTROL)&0x8000 ){
+//	if( GetKeyState(VK_CONTROL)&0x8000 ){
 		g_mAt.x += Pos.x*0.3f*10.f;
 		g_mAt.z += Pos.z*0.3f*10.f;
-	} else {
-		g_mAt.x += Pos.x*0.3f;
-		g_mAt.z += Pos.z*0.3f;
-	}
+	//} else {
+	//	g_mAt.x += Pos.x*0.3f;
+	//	g_mAt.z += Pos.z*0.3f;
+	//}
 	Post = g_mAt;
 	//if( GetKeyState(VK_SHIFT)&0x8000 ) {
 	//	if( g_mArea.CalcYPosition( &Post,20000.f,20000.f ) ) 
@@ -172,13 +171,13 @@ void BackAt( void )
 
 	Pos = g_mAt - g_mEye;
 	D3DXVec3Normalize(&Pos,&Pos);
-	if( GetKeyState(VK_CONTROL)&0x8000 ){
+	//if( GetKeyState(VK_CONTROL)&0x8000 ){
 		g_mAt.x -= Pos.x*0.3f*10.f;
 		g_mAt.z -= Pos.z*0.3f*10.f;
-	} else {
-		g_mAt.x -= Pos.x*0.3f;
-		g_mAt.z -= Pos.z*0.3f;
-	}
+	//} else {
+	//	g_mAt.x -= Pos.x*0.3f;
+	//	g_mAt.z -= Pos.z*0.3f;
+	//}
 	Post = g_mAt;
 	//if( GetKeyState(VK_SHIFT)&0x8000 ) {
 	//	if( g_mArea.CalcYPosition( &Post,20000.f,20000.f ) ) 
@@ -212,7 +211,7 @@ int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
 		RegCloseKey( hKey );
 	}
 	if( !*ffxidir ){
-		MessageBox(NULL,"FinalFantasyXIをインストールしているPCで起動してください。！","FF XI がインストールされてません",MB_OK);
+		MessageBox(NULL,"Please start a PC on which you are installing the FinalFantasyXI！","FF XI is not installed",MB_OK);
 		GetCurrentDirectory(sizeof(ffxidir),ffxidir);
 		return -1;
 	}
@@ -383,21 +382,22 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 		 //       SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListBright[i]);
 			//}
 		    //SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)g_mAreaBright, 0L);
-			for( i=0 ; i<NumListArea ; i++ ) { 
-				int	w5,w6,w7;
+//			for( i=0 ; i<NumListArea ; i++ ) { 
+			for (i = 0; i<LIST_LIMIT && i<NumListArea ; i++) {
+					int	w5, w6, w7;
 				sscanf(ListArea[i],"%d-%d-%d,%d,%d,%d,%s",&w1,&w2,&w3,&w5,&w6,&w7,ww);
 				sprintf(ComboString,"%d-%d-%d,%s",w1,w2,w3,ww);
 		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ComboString);
 			}
 		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_SETCURSEL, (WPARAM)0, 0L);
-			for( i=0 ; i<4 ; i++ ) {     
+			for( i=0 ; i<3 ; i++ ) {     
 		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO2), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListRange[i]);
 			}
-		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO2), CB_SETCURSEL, (WPARAM)3, 0L);
- 			for( i=0 ; i<4 ; i++ ) {     
+		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO2), CB_SETCURSEL, (WPARAM)2, 0L);
+ 			for( i=0 ; i<3 ; i++ ) {     
 		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListRange[i]);
 			}
-		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_SETCURSEL, (WPARAM)3, 0L);
+		    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_SETCURSEL, (WPARAM)2, 0L);
   	//		for( i=0 ; i<7 ; i++ ) {     
 		 //       SendMessage(GetDlgItem(in_hWnd, IDC_COMBO6), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListWeather[i]);
 			//}
@@ -498,7 +498,7 @@ char szFPath[256], szFName[256], strmsg[256];
 	sfn.nFilterIndex = 1;
 	sfn.lpstrFileTitle = szFName;
 	sfn.nMaxFileTitle = sizeof(szFName);
-	sfn.lpstrTitle = "MQOセーブ";
+	sfn.lpstrTitle = "MQO Save";
 	sfn.lpstrInitialDir = NULL;
 	switch (msg)
 	{
@@ -531,21 +531,38 @@ char szFPath[256], szFName[256], strmsg[256];
 					//	g_mEye = Eye;
 					D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
 				}
-			} else if( wParam & MK_RBUTTON ) {
-				if( abs(x2-x1)<20 && abs(y2-y1) <20 ) {
-					g_mLightAlph += (float)(x2-x1)/(float)g_mScreenWidth*2.f*PAI;
-					g_mLightBeta += (float)(y1-y2)/(float)g_mScreenWidth*2.f*PAI;
-					g_mLightAlph = (g_mLightAlph>PAI2)?(g_mLightAlph-PAI2):g_mLightAlph;
-					g_mLightAlph = (g_mLightAlph<-PAI2)?(g_mLightAlph+PAI2):g_mLightAlph;
-					g_mLightBeta = (g_mLightBeta>(PAI/2.f))?(PAI/2.f-0.02f):g_mLightBeta;
-					g_mLightBeta = (g_mLightBeta<(-PAI/2.f))?(-PAI/2.f+0.02f):g_mLightBeta;
-					D3DXMATRIX mat,matY,matX;
-					D3DXMatrixRotationY(&matY,g_mLightAlph);
-					D3DXMatrixRotationX(&matX,g_mLightBeta);
+			}
+			else if (wParam & MK_MBUTTON) {
+				if (abs(x2 - x1)<20 && abs(y2 - y1) <20) {
+					g_mLightAlph += (float)(x2 - x1) / (float)g_mScreenWidth*2.f*PAI;
+					g_mLightBeta += (float)(y1 - y2) / (float)g_mScreenWidth*2.f*PAI;
+					g_mLightAlph = (g_mLightAlph>PAI2) ? (g_mLightAlph - PAI2) : g_mLightAlph;
+					g_mLightAlph = (g_mLightAlph<-PAI2) ? (g_mLightAlph + PAI2) : g_mLightAlph;
+					g_mLightBeta = (g_mLightBeta>(PAI / 2.f)) ? (PAI / 2.f - 0.02f) : g_mLightBeta;
+					g_mLightBeta = (g_mLightBeta<(-PAI / 2.f)) ? (-PAI / 2.f + 0.02f) : g_mLightBeta;
+					D3DXMATRIX mat, matY, matX;
+					D3DXMatrixRotationY(&matY, g_mLightAlph);
+					D3DXMatrixRotationX(&matX, g_mLightBeta);
 					mat = matX * matY;
-					D3DXVec3TransformNormal((D3DXVECTOR3*)&g_mLight.Direction,(D3DXVECTOR3*)&g_mLightbase.Direction,&mat);
-					D3DXVec3Normalize( (D3DXVECTOR3*)&g_mLight.Direction, (D3DXVECTOR3*)&g_mLight.Direction );
-					GetDevice()->SetLight( 0, &g_mLight );
+					D3DXVec3TransformNormal((D3DXVECTOR3*)&g_mLight.Direction, (D3DXVECTOR3*)&g_mLightbase.Direction, &mat);
+					D3DXVec3Normalize((D3DXVECTOR3*)&g_mLight.Direction, (D3DXVECTOR3*)&g_mLight.Direction);
+					GetDevice()->SetLight(0, &g_mLight);
+				}
+			}
+			else if (wParam & MK_RBUTTON) {
+				if (abs(x2-x1)<20 && abs(y2 - y1) <20) {
+					Pos = g_mAt - g_mEye;
+					D3DXVec3Normalize(&Pos, &Pos);
+					D3DXMatrixRotationY(&mm, -PAI / 2.);
+					D3DXVec3TransformCoord(&Pos, &Pos, &mm);
+					//	if( GetKeyState(VK_CONTROL)&0x8000 ){
+					g_mAt.x += Pos.x*((x2 - x1)/10.f);
+					g_mAt.z += Pos.z*((x2 - x1)/10.f);
+//					g_mAt.x += (x2 - x1) / 10.f;
+					g_mAt.y += (y2 - y1) / 10.f;
+					D3DXVec3TransformNormal(&g_mEye, &g_mEyebase, &g_mEyeMat);
+					g_mEye += g_mAt;
+					D3DXMatrixLookAtLH(&g_mView, &g_mEye, &g_mAt, &g_mUp);
 				}
 			}
 			x1 = x2; y1 = y2;
@@ -609,25 +626,27 @@ char szFPath[256], szFName[256], strmsg[256];
 				g_mScreenWidth = 1600; g_mScreenHeight = 1200;
 			}
 			if (LOWORD(wParam) == ID_MNU_META) {
-				sfn.lpstrTitle = "MQO通常セーブ";
+				sfn.lpstrTitle = "MQO Save";
 				if (GetSaveFileName(&sfn)){
 					if (!g_mArea.saveMQO(szFPath, szFName, g_mAt.x, g_mAt.y, g_mAt.z)) {
-						wsprintf(strmsg, "ファイル %s　は正しく処理できませんでした", szFPath);
-						MessageBox(NULL, strmsg, "セーブファイルオープン", MB_OK | MB_ICONINFORMATION);
+						wsprintf(strmsg, "File %s could not be processed correctly", szFPath);
+						MessageBox(NULL, strmsg, "Open Save File", MB_OK | MB_ICONINFORMATION);
 					}
 				}
 			}
 			if (LOWORD(wParam) == ID_MNU_EFFT) {
-				sfn.lpstrTitle = "MQOエフェクトセーブ";
+				wsprintf(strmsg, "This feature is not supported", szFPath);
+				MessageBox(NULL, strmsg, "not supported", MB_OK | MB_ICONINFORMATION);
+	/*			sfn.lpstrTitle = "MQO Save Effect Data";
 				if (GetSaveFileName(&sfn)){
 					if (!g_mArea.saveMQO2(szFPath, szFName, g_mAt.x, g_mAt.y, g_mAt.z)) {
-						wsprintf(strmsg, "ファイル %s　は正しく処理できませんでした", szFPath);
-						MessageBox(NULL, strmsg, "セーブファイルオープン", MB_OK | MB_ICONINFORMATION);
+						wsprintf(strmsg, "File %s could not be processed correctly", szFPath);
+						MessageBox(NULL, strmsg, "Open Save File", MB_OK | MB_ICONINFORMATION);
 					}
 				}
-			}
+	*/		}
 			if (LOWORD(wParam) == ID_MNU_EXIT) {
-				if( MessageBox(NULL, "本当に終了しますか？", "プログラム終了", MB_YESNO | MB_ICONQUESTION ) == IDYES ) {
+				if( MessageBox(NULL, "Do you really want to quit?", "Quit Program", MB_YESNO | MB_ICONQUESTION ) == IDYES ) {
 					SendMessage(hWnd, WM_CLOSE, 0L, 0L);
 				}
 			}
@@ -690,38 +709,59 @@ char szFPath[256], szFName[256], strmsg[256];
 				//if( g_mArea.CalcEyePosition( &g_mAt, &Eye ) ) g_mEye = Eye;
 				D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
 			} else if( wParam==VK_HOME ){
-			} else if( wParam==VK_UP ){
+			} else if( wParam==VK_UP || wParam=='W' || wParam=='w' ){
 				MoveAt();
-			} else if( wParam==VK_DOWN ){
+			}
+			else if (wParam == VK_DOWN || wParam == 'S' || wParam == 's'){
 				BackAt();
-			} else if( wParam==VK_RIGHT ){
-				g_mEyeAlph +=PAI/64.f;
-				g_mEyeAlph = (g_mEyeAlph>PAI2)?(g_mEyeAlph-PAI2):g_mEyeAlph;
-				g_mEyeAlph = (g_mEyeAlph<-PAI2)?(g_mEyeAlph+PAI2):g_mEyeAlph;
-				D3DXMATRIX matY,matX,matS;
-				D3DXMatrixRotationY(&matY,g_mEyeAlph);
-				D3DXMatrixRotationX(&matX,g_mEyeBeta);
-				D3DXMatrixScaling(&matS,g_mEyeScale,g_mEyeScale,g_mEyeScale);
-				g_mEyeMat = matS * matX * matY;
-				D3DXVec3TransformNormal(&g_mEye,&g_mEyebase,&g_mEyeMat);
+			}
+			else if (wParam == VK_RIGHT || wParam == 'D' || wParam == 'd'){
+				Pos = g_mAt - g_mEye;
+				D3DXVec3Normalize(&Pos, &Pos);
+				D3DXMatrixRotationY(&mm, PAI / 2.);
+				D3DXVec3TransformCoord(&Pos, &Pos, &mm);
+				g_mAt.x += Pos.x*0.3f* 10.f;
+				g_mAt.z += Pos.z*0.3f* 10.f;
+				D3DXVec3TransformNormal(&g_mEye, &g_mEyebase, &g_mEyeMat);
 				g_mEye += g_mAt;
-				D3DXVECTOR3 Eye;
-				//if( g_mArea.CalcEyePosition( &g_mAt, &Eye ) ) g_mEye = Eye;
-				D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
-			} else if( wParam==VK_LEFT ){
-				g_mEyeAlph -=PAI/64.f;
-				g_mEyeAlph = (g_mEyeAlph>PAI2)?(g_mEyeAlph-PAI2):g_mEyeAlph;
-				g_mEyeAlph = (g_mEyeAlph<-PAI2)?(g_mEyeAlph+PAI2):g_mEyeAlph;
-				D3DXMATRIX matY,matX,matS;
-				D3DXMatrixRotationY(&matY,g_mEyeAlph);
-				D3DXMatrixRotationX(&matX,g_mEyeBeta);
-				D3DXMatrixScaling(&matS,g_mEyeScale,g_mEyeScale,g_mEyeScale);
-				g_mEyeMat = matS * matX * matY;
-				D3DXVec3TransformNormal(&g_mEye,&g_mEyebase,&g_mEyeMat);
+				D3DXMatrixLookAtLH(&g_mView, &g_mEye, &g_mAt, &g_mUp);
+				//g_mEyeAlph +=PAI/64.f;
+				//g_mEyeAlph = (g_mEyeAlph>PAI2)?(g_mEyeAlph-PAI2):g_mEyeAlph;
+				//g_mEyeAlph = (g_mEyeAlph<-PAI2)?(g_mEyeAlph+PAI2):g_mEyeAlph;
+				//D3DXMATRIX matY,matX,matS;
+				//D3DXMatrixRotationY(&matY,g_mEyeAlph);
+				//D3DXMatrixRotationX(&matX,g_mEyeBeta);
+				//D3DXMatrixScaling(&matS,g_mEyeScale,g_mEyeScale,g_mEyeScale);
+				//g_mEyeMat = matS * matX * matY;
+				//D3DXVec3TransformNormal(&g_mEye,&g_mEyebase,&g_mEyeMat);
+				//g_mEye += g_mAt;
+				//D3DXVECTOR3 Eye;
+				////if( g_mArea.CalcEyePosition( &g_mAt, &Eye ) ) g_mEye = Eye;
+				//D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
+			}
+			else if (wParam == VK_LEFT || wParam == 'A' || wParam == 'a'){
+				Pos = g_mAt - g_mEye;
+				D3DXVec3Normalize(&Pos, &Pos);
+				D3DXMatrixRotationY(&mm, -PAI / 2.);
+				D3DXVec3TransformCoord(&Pos, &Pos, &mm);
+				g_mAt.x += Pos.x*0.3f* 10.f;
+				g_mAt.z += Pos.z*0.3f* 10.f;
+				D3DXVec3TransformNormal(&g_mEye, &g_mEyebase, &g_mEyeMat);
 				g_mEye += g_mAt;
-				D3DXVECTOR3 Eye;
-				//if( g_mArea.CalcEyePosition( &g_mAt, &Eye ) ) g_mEye = Eye;
-				D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
+				D3DXMatrixLookAtLH(&g_mView, &g_mEye, &g_mAt, &g_mUp);
+				//g_mEyeAlph -=PAI/64.f;
+				//g_mEyeAlph = (g_mEyeAlph>PAI2)?(g_mEyeAlph-PAI2):g_mEyeAlph;
+				//g_mEyeAlph = (g_mEyeAlph<-PAI2)?(g_mEyeAlph+PAI2):g_mEyeAlph;
+				//D3DXMATRIX matY,matX,matS;
+				//D3DXMatrixRotationY(&matY,g_mEyeAlph);
+				//D3DXMatrixRotationX(&matX,g_mEyeBeta);
+				//D3DXMatrixScaling(&matS,g_mEyeScale,g_mEyeScale,g_mEyeScale);
+				//g_mEyeMat = matS * matX * matY;
+				//D3DXVec3TransformNormal(&g_mEye,&g_mEyebase,&g_mEyeMat);
+				//g_mEye += g_mAt;
+				//D3DXVECTOR3 Eye;
+				////if( g_mArea.CalcEyePosition( &g_mAt, &Eye ) ) g_mEye = Eye;
+				//D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
 			}
 			break;
 		//==============================================

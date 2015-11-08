@@ -49,7 +49,7 @@ static float		fTime		= 0;
 extern	unsigned long	VertexShaderVersion;
 extern	int				MaxVertexShaderConst; // 頂点シェーダー　MAX　Matrix
 
-D3DXMATRIX			g_mProjection, g_mView,g_mEyeMat;
+D3DXMATRIX			g_mProjection, g_mView, g_mEyeMat;
 float				g_mEyeScale=1.f,g_mEyeAlph = 0.f,g_mEyeBeta = 0.f;
 float				g_mLightAlph = 0.f,g_mLightBeta = 0.f;
 D3DXVECTOR3			g_mEye,g_mEyebase( 0.0f,	 1.1f, -4.5f);
@@ -82,7 +82,7 @@ bool InitD3D(void)
 	//==============================================================================
 	g_pDirect3D = Direct3DCreate9(D3D_SDK_VERSION);
 	if (g_pDirect3D == NULL) {
-		MessageBox(NULL, "Direct3Dの作成に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+		MessageBox(NULL, "It failed to create a Direct3D", "Error", MB_OK | MB_ICONSTOP);
 		return false;
 	}
 
@@ -91,7 +91,7 @@ bool InitD3D(void)
 	//==============================================================================
 	hr = g_pDirect3D->GetAdapterDisplayMode(D3DADAPTER_DEFAULT, &d3ddm);
 	if FAILED(hr) {
-		MessageBox(NULL, "画面モードの取得に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+		MessageBox(NULL, "It failed to get the screen mode", "Error", MB_OK | MB_ICONSTOP);
 		return false;
 	}
 
@@ -138,7 +138,7 @@ bool InitD3D(void)
 			if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
 				// REFERENCE RASTERIZE
 				if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
-					MessageBox(NULL, "Direct3Dデバイスの生成に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+					MessageBox(NULL, "It failed to generate the Direct3D device", "Error", MB_OK | MB_ICONSTOP);
 					return false;
 				}
 			}
@@ -151,7 +151,7 @@ bool InitD3D(void)
 			if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
 				// REFERENCE RASTERIZE
 				if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
-					MessageBox(NULL, "Direct3Dデバイスの生成に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+					MessageBox(NULL, "It failed to generate the Direct3D device", "Error", MB_OK | MB_ICONSTOP);
 					return false;
 				}
 			}
@@ -253,7 +253,7 @@ bool Create3DSpace( void )
 	//===========================================================
 	// デフォルトのカメラの設定
 	//===========================================================
-
+	D3DXMatrixIdentity(&g_mEyeMat);
 	D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
 	//=================================================
 	// レンダリングステート
@@ -314,7 +314,7 @@ bool InitRender( void )
 	//--------------------------------------------------
 	if ( !Create3DSpace() )
 	{
-		MessageBox( NULL, "初期設定に失敗", "Error", MB_OK );
+		MessageBox( NULL, "It failed to initialize", "Error", MB_OK );
 		return false;
 	}
 	//--------------------------------------------------
