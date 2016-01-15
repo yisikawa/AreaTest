@@ -12,7 +12,7 @@
 
 #pragma comment(lib,"comdlg32.lib")
 
-#define LIST_LIMIT 60
+#define LIST_LIMIT 1024
 //======================================================================
 // PROTOTYPE
 //======================================================================
@@ -48,8 +48,8 @@ HWND hWindow;			// ウィンドウハンドル
 HWND hDlg1;			// ダイアログ１
 
 unsigned long Polygons;
-float		g_mDispArea =	150.f;
-float		g_mDispTree =	150.f;
+float		g_mDispArea =	1500.f;
+float		g_mDispTree =	1500.f;
 D3DXVECTOR3	g_mEntry(0.f,0.f,0.f);
 int			g_mDispValue=0;
 int			g_mAreaBright=1;
@@ -69,7 +69,7 @@ char		g_mWeather[6]="suny";
 static const	LPCTSTR		ListRange[] = {
 " 25 m, Near",
 " 75 m, Short-range",
-"150 m, medium-range"
+"1500 m, medium-range"
 };
 
 // 天候　表示
