@@ -323,7 +323,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="icon1.ico" />
-    <None Include="hlsl.fx" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

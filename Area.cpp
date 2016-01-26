@@ -519,7 +519,6 @@ HRESULT CAreaMesh::LoadAreaMesh( char *pFile, CArea *pArea, unsigned long FVF )
 			pV += nVertex;
 			memcpy((char*)pIndex,(char*)pIdx,sizeof(WORD)*nIndex);
 			pIndex += nIndex;
-//			SAFE_DELETES( pVertex );
 			SAFE_DELETES( pIdx );
 			m_LStreams.push_back( tStream );
 			NumVertices += nVertex;
@@ -694,7 +693,8 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 		pos+=next;
 	}
 	// I—¹
-	delete pdat;
+	SAFE_DELETES(pdat);
+//	delete pdat;
 	return hr;
 }
 
@@ -827,7 +827,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 	if( hFile!=INVALID_HANDLE_VALUE ){
 		mFileSize = GetFileSize(hFile,NULL);
 	    pFileBuf = new char[mFileSize];
-	    ReadFile(hFile,pFileBuf,mFileSize,&cnt,NULL);
+	    hr = ReadFile(hFile,pFileBuf,mFileSize,&cnt,NULL);
 	    CloseHandle(hFile);
 		hr = 0;
 	} else {
@@ -981,7 +981,6 @@ unsigned long CArea::Rendering( float PosX, float PosY, float PosZ )
 	// ƒ‰ƒCƒg‚Ì•ûŒü‚ð•ÏŠ·
 	D3DXVECTOR4 LightDir(-g_mLight.Direction.x, -g_mLight.Direction.y, -g_mLight.Direction.z, 0.7f);
 
-	IDirect3DVertexDeclaration9	*VertexFormat;
 	//GetDevice()->SetVertexShader( NULL );
 	GetDevice()->SetVertexShader(m_hVertexShader);
 	GetDevice()->SetVertexDeclaration(m_VertexFormat);
@@ -1324,7 +1323,6 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 	int				i1, i2, i3, t1, t2, t3;
 	CAreaMesh		*pAreaMesh;
 	D3DXMATRIX		RootMatrix,AreaMatrix;
-	float			DispArea;
 	D3DXVECTOR3		BL, BL2, BL3, BL4, BH, BH2, BH3, BH4;
 
 	D3DXMatrixRotationZ(&RootMatrix, PAI);
