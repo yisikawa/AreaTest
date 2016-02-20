@@ -332,6 +332,693 @@ IDirect3DTexture9 *CTexture::GetTexture( void )
 {
 	return m_pTexture;
 }
+// CKeyFrame
+// デフォルトコンストラクタ
+//-------------------------------------------------------------
+CKeyFrame::CKeyFrame()
+	: m_numKey(0), m_keys(0), m_values(0), m_isLoop(TRUE), m_startTime(0), m_duration(0)
+{
+}
+
+//---------------------------------------------------------
+// デストラクタ
+//---------------------------------------------------------
+CKeyFrame::~CKeyFrame()
+{
+	if (m_keys != 0) {
+		delete[] m_keys;
+	}
+
+	if (m_values != 0) {
+		delete[] m_values;
+	}
+}
+
+void CKeyFrame::GetKeyFrame(char *pBuf)
+{
+	char	*ptr;
+	int		num = 0;
+	float	key = 0.f, val = 0.f;
+
+	memcpy(m_type, pBuf, 4);
+	ptr = pBuf + 16;
+	while (key<1.0) {
+		key = *((float*)ptr); ptr += 4;
+		val = *((float*)ptr); ptr += 4;
+		num++;
+	}
+	CreateKey(num);
+	ptr = pBuf + 16;
+	for (int i = 0; i<num; i++) {
+		key = *((float*)ptr); ptr += 4;
+		val = *((float*)ptr); ptr += 4;
+		SetKeyValue(i, key, val);
+	}
+	SetLoopFlag(true);
+	SetStartTime(0);
+}
+
+//---------------------------------------------------------
+// キーの生成
+// 引数
+//		numKey : キーの数
+//---------------------------------------------------------
+void CKeyFrame::CreateKey(int numKey)
+{
+
+	// キーフレーム数の設定
+	m_numKey = numKey;
+
+	// 古いデータを削除
+	if (m_keys != 0) {
+		delete[] m_keys;
+	}
+
+	if (m_values != 0) {
+		delete[] m_values;
+	}
+
+	// 新しい配列の生成
+	m_keys = new float[m_numKey];
+	m_values = new float[m_numKey];
+
+}
+
+//---------------------------------------------------------
+// キーとキーに対応する値の設定
+// キーは小さい方から順番に設定すること
+// 2度目以降同じインデックスを使用した場合は上書きされる
+// 引数
+//		index : インデックス, 0 <= index < createKeyで生成したキーの数
+//		key   : キー, 0.0f <= key <= 1.0f
+//		value : キーに対応する値
+//---------------------------------------------------------
+void CKeyFrame::SetKeyValue(int index, float key, float value)
+{
+	//インデックスが0より小さい、または現在のキーの数以上なら何もしない
+	if ((index < 0) || (index >= m_numKey)) {
+		return;
+	}
+
+	m_keys[index] = key;
+	m_values[index] = value;
+}
+
+//---------------------------------------------------------
+// アニメーションの長さ(キーが0から1まで変化するのにかかる時間)の設定
+// 引数
+//		duration : 時間(ミリ秒)
+//---------------------------------------------------------
+void CKeyFrame::SetDuration(DWORD duration)
+{
+	// アニメーション全体の継続時間をメンバ変数に保存
+	m_duration = duration;
+}
+
+//---------------------------------------------------------
+// アニメーションをループするかどうかの設定
+// 引数
+//		isLoop : TRUEならループする, FALSEならループしない
+//---------------------------------------------------------
+void CKeyFrame::SetLoopFlag(DWORD isLoop)
+{
+	m_isLoop = isLoop;
+}
+
+//---------------------------------------------------------
+// アニメーション開始時刻の設定
+// 引数
+//		start : アニメーションの開始時刻(ミリ秒)
+//---------------------------------------------------------
+void CKeyFrame::SetStartTime(DWORD start)
+{
+	m_startTime = start;
+}
+
+//---------------------------------------------------------
+// 時刻に対応する値を取得する
+// 引数
+//		time   : 時刻(ミリ秒)
+//		pValue : 結果を受け取る変数へのポインタ
+//		pIsEnd : アニメーション終了判定フラグを受け取る変数へのポインタ, 終了していたらTRUEそうれなければFALSE
+// 戻り値
+//		値の取得に成功したらTRUE, 失敗したらFALSE
+//---------------------------------------------------------
+BOOL CKeyFrame::GetValue(DWORD time, float* pValue, BOOL* pIsEnd)
+{
+	if (pValue == 0) {
+		return FALSE;
+	}
+
+	if (pIsEnd == 0) {
+		return FALSE;
+	}
+
+	if (m_numKey <= 0) {
+		return FALSE;
+	}
+
+	//----------------------------------------
+	//アニメーションが終了していたときの処理
+	//----------------------------------------
+	DWORD	endTime = m_startTime + m_duration;	//終了時刻
+
+	if (!m_isLoop) {	// ループしない場合
+		if (time < m_startTime) {
+			// 時刻が開始時刻よりも小さければ最初の値を返す
+			*pValue = m_values[0];
+			*pIsEnd = TRUE;
+			return TRUE;
+		}
+		else if (time > endTime) {
+			// 時刻が終了時刻よりも大きければ最後の値を返す
+			*pValue = m_values[m_numKey - 1];
+			*pIsEnd = TRUE;
+			return TRUE;
+		}
+	}
+
+	//----------------------------------------
+	//アニメーションの計算
+	//----------------------------------------
+	int		beginIndex;
+	int		endIndex;
+	float	fraction;
+	float	slope;
+
+	// 現在時刻を割合に変換
+	fraction = GetFraction(time);
+	// 現在時刻にもっとも近い直前のキーフレーム取得
+	beginIndex = GetBeginIndex(fraction);
+	// 現在時刻にもっとも近い直後のキーフレーム取得
+	endIndex = beginIndex + 1;
+
+	// 値の計算
+	if (beginIndex < 0) {	// アニメーション開始前
+		*pValue = m_values[0];	// 最初のキーフレームの値を返す
+	}
+	else if (beginIndex >= m_numKey - 1) {	// アニメーション終了後
+		*pValue = m_values[m_numKey - 1];	// 最後のキーフレームの値を返す
+	}
+	else {
+		// 傾き（1.0あたりの増減量）を求める
+		float diffValue = m_values[endIndex] - m_values[beginIndex];// キーフレーム間の値の差
+		float diffTime = m_keys[endIndex] - m_keys[beginIndex];		// キーフレーム間の継続時間
+		slope = diffValue / diffTime;
+
+		// 現在値を求める
+		float fPastFromPrev = fraction - m_keys[beginIndex];	// 直前のキーフレームからの経過時間（現在時刻- 直前のキーフレームの時刻）
+		*pValue = slope * fPastFromPrev + m_values[beginIndex]; // 現在値の計算
+	}
+
+	*pIsEnd = FALSE;
+
+	return TRUE;
+}
+
+//---------------------------------------------------------
+// 時刻を割合に変換する
+// 引数
+//		time   : 時刻(ミリ秒)
+// 戻り値
+//		割合
+//---------------------------------------------------------
+float CKeyFrame::GetFraction(DWORD time)
+{
+	DWORD	diffTime;
+	float	fraction;
+
+	// 時刻から割合を求める
+	if (m_duration == 0) {
+		fraction = 1.0f;
+	}
+	else {
+		if (time > m_startTime) {
+			//通常処理
+			// 現在時刻からスタート時刻を引く
+			diffTime = time - m_startTime;
+			// ループ対応
+			diffTime = diffTime % m_duration;
+			//割合の計算
+			fraction = (float)diffTime / (float)m_duration;
+			//小数部分だけ使用
+			fraction = fraction - (int)fraction;
+		}
+		else {
+			//もし、現在時刻が、スタート時刻より小さいとき
+			//タイマーが一周してしまったとき発生する
+			diffTime = m_startTime - time;
+			diffTime = diffTime % m_duration;
+			fraction = (float)diffTime / (float)m_duration;
+			fraction = 1.0f - (fraction - (int)fraction);
+		}
+	}
+
+	return fraction;
+}
+
+//---------------------------------------------------------
+// 割合に対応するインデックスを取得する
+// 引数
+//		fraction : 割合
+// 戻り値
+//		配列のインデックス, fractionが登録されているキーより小さければ-1
+//---------------------------------------------------------
+int CKeyFrame::GetBeginIndex(float fraction)
+{
+	if (fraction < m_keys[0])
+		return -1;
+
+	// 引数に指定された割合とキーフレームの割合を比較する
+	int index = 0;
+	for (int i = 0; i < m_numKey; i++) {
+		// キーフレームより大きくなったら発見
+		if (m_keys[i] <= fraction) {
+			index = i;
+		}
+		else {
+			break;
+		}
+	}
+
+	return index;
+}
+//-------------------------------------------------------------
+// デフォルトコンストラクタ
+//-------------------------------------------------------------
+CEffect::CEffect()
+{
+	InitData();
+}
+
+//---------------------------------------------------------
+// デストラクタ
+//---------------------------------------------------------
+CEffect::~CEffect()
+{
+}
+
+void CEffect::InitData(void)
+{
+	m_p01.x = 0.f; m_p01.y = 0.f; m_p01.z = 0.f;
+	m_p02 = m_p03 = m_r06 = m_r09 = m_r0A = m_r0B = m_r0C = m_s0F = m_p01;
+	m_s10 = m_s11 = m_s12 = m_s13 = m_r1F = m_s1F = m_h1F = m_p01;
+	m_name[0] = '\0'; m_target[0] = '\0';
+	m_no = m_1fdiv = 0;
+	m_ModelType = 0;
+	m_08dist = 0.f;
+	m_color.r = m_color.b = m_color.g = m_color.a = 0.f;
+	m_Rd = m_Gr = m_Bl = m_Al = NULL;
+	m_kfpx = m_kfpy = m_kfpz = NULL;
+	m_kfrx = m_kfry = m_kfrz = NULL;
+	m_kfsx = m_kfsy = m_kfsz = NULL;
+	m_kfu = m_kfv = NULL;
+	m_EffectObj.Release();
+}
+
+void CEffect::Set1F(int no)
+{
+	D3DXVECTOR3	vec, pos, tempv;
+	D3DXMATRIX	tempm;
+	float		angl;
+
+	if (m_no <= 0) return;
+	angl = PAI * 2 / (float)(m_no + 1)*no;
+
+	vec.x = 1.f; vec.y = vec.z = 0.f;
+	tempv.x = (float)m_r1F.x + (float)rand() / 32767.f*m_r1F.y; tempv.z = 0.f;
+	tempv.y = (float)m_h1F.x + (float)rand() / 32767.f*m_h1F.y;
+	D3DXMatrixRotationY(&tempm, angl);
+	D3DXVec3TransformNormal(&tempv, &tempv, &tempm);
+	D3DXVec3TransformNormal(&vec, &vec, &tempm);
+	pos.x += tempv.x;
+	pos.y += tempv.y;
+	pos.z += tempv.z;
+	vec.x *= m_08dist;
+	vec.y *= m_08dist;
+	vec.z *= m_08dist;
+}
+
+#define	LIFE_BASE 30
+
+//		エフェクトマトリックスの読み込み
+void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
+{
+	CKeyFrame	*pKFrame;
+	bool		Sflg = false;
+	char			*pAdr;
+	char			type;
+	D3DXMATRIX	AreaMatrix, TempMatrix;
+	int			num, dat1Adr, dat2Adr, dat3Adr, dat4Adr;
+
+	memcpy(m_name, pBuff, 4);
+	pAdr = pBuff;
+	dat1Adr = *((int*)(pAdr + 0x80));
+	dat2Adr = *((int*)(pAdr + 0x84));
+	dat3Adr = *((int*)(pAdr + 0x88));
+	dat4Adr = *((int*)(pAdr + 0x8c));
+
+	m_no = *((unsigned char*)(pAdr + 0x78));
+	m_interval = *((unsigned short*)(pAdr + 0x76));
+
+	pAdr = pBuff + dat3Adr;
+	while (pAdr<(pBuff + dat4Adr)) {
+		type = *pAdr;
+		num = (int)*(pAdr + 1); num &= 0x0f;
+		if (type == 0) break;
+		switch (type) {
+		case 0x27:
+			m_uv.x = *((float*)(pAdr + 4));
+			pAdr += 4 * num;
+			break;
+		case 0x28:
+			m_uv.y = *((float*)(pAdr + 4));
+			pAdr += 4 * num;
+			break;
+		default:
+			pAdr += 4 * num;
+			break;
+		}
+	}
+	pAdr = pBuff + dat2Adr;
+	WORD	mtype;
+	DWORD	col;
+	while (pAdr<(pBuff + dat3Adr)) {
+		type = *pAdr;
+		num = (int)*(pAdr + 1); num &= 0x0f;
+		switch (type) {
+		case 0x00:
+			return;
+		case 0x01: // オフセット
+			memcpy(m_target, pAdr + 12, 4);
+			m_kind1 = *((WORD*)(pAdr + 4));
+			m_kind2 = *((WORD*)(pAdr + 6));
+			m_p01.x = *((float*)(pAdr + 20));
+			m_p01.y = *((float*)(pAdr + 24));
+			m_p01.z = *((float*)(pAdr + 28));
+			mtype = *((WORD*)(pAdr + 32));
+			if ((mtype >> 8) == 0x0b)
+				m_ModelType = 0x1f;
+			else if ((mtype >> 8) == 0x0E)
+				m_ModelType = 0x21;
+			else if ((mtype & 0xff) == 0x3d)
+				m_ModelType = 0x3d;
+			else
+				m_ModelType = 0xff;
+			m_lifeTime = *((WORD*)(pAdr + 34));
+			m_lifeTime = (DWORD)((float)m_lifeTime*1000.f / (float)LIFE_BASE);
+			pAdr += 4 * num;
+			break;
+		case 0x02:
+			m_p02.x = *((float*)(pAdr + 4));
+			m_p02.y = *((float*)(pAdr + 8));
+			m_p02.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x03:
+			m_p03.x = *((float*)(pAdr + 4));
+			m_p03.y = *((float*)(pAdr + 8));
+			m_p03.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x06:
+			m_r06.x = *((float*)(pAdr + 4));
+			m_r06.y = *((float*)(pAdr + 8));
+			m_r06.z = 0.f;
+			pAdr += 4 * num;
+			break;
+		case 0x08:
+			m_08dist = *((float*)(pAdr + 4));
+			pAdr += 4 * num;
+			break;
+		case 0x09://初期位置
+			m_r09.x = *((float*)(pAdr + 4));
+			m_r09.y = *((float*)(pAdr + 8));
+			m_r09.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x0a://回転
+			m_r0A.x = *((float*)(pAdr + 4));
+			m_r0A.y = *((float*)(pAdr + 8));
+			m_r0A.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x0b:// 回転差分
+			m_r0B.x = *((float*)(pAdr + 4));
+			m_r0B.y = *((float*)(pAdr + 8));
+			m_r0B.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x0c:// 回転差分
+			m_r0C.x = *((float*)(pAdr + 4));
+			m_r0C.y = *((float*)(pAdr + 8));
+			m_r0C.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x0f:// 初期スケール
+			m_s0F.x = *((float*)(pAdr + 4));
+			m_s0F.y = *((float*)(pAdr + 8));
+			m_s0F.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x10:// スケール差分
+			m_s10.x = *((float*)(pAdr + 4));
+			m_s10.y = *((float*)(pAdr + 8));
+			m_s10.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x11://スケールの揺らぎ
+			m_s11.x = *((float*)(pAdr + 4));
+			m_s11.y = *((float*)(pAdr + 4));
+			m_s11.z = *((float*)(pAdr + 4));
+			pAdr += 4 * num;
+			break;
+		case 0x12:// スケール差分
+			Sflg = true;
+			m_s12.x = *((float*)(pAdr + 4));
+			m_s12.y = *((float*)(pAdr + 8));
+			m_s12.z = *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x13:// スケール差分
+			Sflg = true;
+			m_s13.x += *((float*)(pAdr + 4));
+			m_s13.y += *((float*)(pAdr + 8));
+			m_s13.z += *((float*)(pAdr + 12));
+			pAdr += 4 * num;
+			break;
+		case 0x16:// 初期カラー
+			col = *((int*)(pAdr + 4));
+			m_color.r = (float)((col >> 0) & 0x00ff) / 255.f;
+			m_color.g = (float)((col >> 8) & 0x00ff) / 255.f;
+			m_color.b = (float)((col >> 16) & 0x00ff) / 255.f;
+			m_color.a = (float)((col >> 24) & 0x00ff) / 255.f;
+			pAdr += 4 * num;
+			break;
+		case 0x1E:
+			pAdr += 4 * num;
+			break;
+		case 0x1F:
+			m_r1F.y = *((float*)(pAdr + 4));
+			m_r1F.x = *((float*)(pAdr + 8));
+			m_s1F.x = *((float*)(pAdr + 12));
+			m_s1F.y = *((float*)(pAdr + 16));
+			m_s1F.z = *((float*)(pAdr + 20));
+			m_h1F.x = *((float*)(pAdr + 24));
+			m_h1F.y = *((float*)(pAdr + 28));
+			m_1fdiv = *((int*)(pAdr + 44));
+			pAdr += 4 * num;
+			break;
+		case 0x21:
+			m_kfpx = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfpx = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x22:
+			m_kfpy = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfpy = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x23:
+			m_kfpz = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfpz = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x24:
+			m_kfrx = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfrx = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x25:
+			m_kfry = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfry = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x26:
+			m_kfrz = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfrz = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x27:
+			m_kfsx = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfsx = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x28:
+			m_kfsy = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfsy = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x29:
+			m_kfsz = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfsz = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x2D:
+			m_Al = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_Al = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x2E:
+			m_kfu = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfu = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x2F:
+			m_kfv = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_kfv = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x30:
+			pAdr += 4 * num;
+			break;
+		case 0x60:
+			m_Rd = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_Rd = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x61:
+			m_Gr = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_Gr = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		case 0x62:
+			m_Bl = NULL;
+			pKFrame = pKeyFrame;
+			while (pKFrame) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+					m_Bl = pKFrame;
+					pKFrame->SetDuration(m_lifeTime);
+				}
+				pKFrame = (CKeyFrame*)pKFrame->Next;
+			}
+			pAdr += 4 * num;
+			break;
+		default:
+			pAdr += 4 * num;
+			break;
+		}
+	}
+}
+
 
 //		コンストラクタ
 CAreaMesh::CAreaMesh()
@@ -695,6 +1382,95 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 	}
 	// 終了
 	delete pdat;
+	return hr;
+}
+
+//======================================================================
+//
+//		(0x19,0x05)キーフレーム,エフェクトモーションの読み込み
+//
+//	input
+//		char *filename			: 読み込みファイル名（リソース名でも可
+//
+//	output
+//		エラー文字列へのポインタ。
+//		正常終了の場合はNULL。
+//
+//======================================================================
+HRESULT CArea::LoadEffectFromFile(char *FileName)
+{
+	HRESULT hr = S_OK;
+
+	//====================================================
+	// ファイルをメモリに取り込む
+	//====================================================
+	char *pdat = NULL;
+	int dwSize;
+	CKeyFrame *pKeyFrame;
+	CEffect *pEffect;
+	unsigned long	cnt;
+
+	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+	if (hFile != INVALID_HANDLE_VALUE){
+		dwSize = GetFileSize(hFile, NULL);
+		pdat = new char[dwSize];
+		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
+		CloseHandle(hFile);
+		hr = 0;
+	}
+	else {
+		return -1;
+	}
+
+	//====================================================
+	// メッシュの読み込み
+	//====================================================
+	int					type, pos = 0, next;
+	while (pos<dwSize) {
+		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
+		if (next<16) break;
+		if (next + pos>dwSize) break;
+		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
+		switch (type) {
+		case 0x19:
+			pKeyFrame = new CKeyFrame;
+			pKeyFrame->GetKeyFrame(pdat + pos);
+			m_KeyFrames.InsertTop(pKeyFrame);
+			break;
+		}
+		pos += next;
+	}
+	pos = 0;
+	while (pos<dwSize) {
+		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
+		if (next<16) break;
+		if (next + pos>dwSize) break;
+		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
+		switch (type) {
+		case 0x05:
+			pEffect = new CEffect;
+			pEffect->GetEffectMatrix(pdat + pos, (CKeyFrame*)m_KeyFrames.Top());
+			m_Effects.InsertTop(pEffect);
+			break;
+		}
+		pos += next;
+	}
+	//pEffect = (CEffect*)m_Effects.Top();
+	//while (pEffect) {
+	//	pEffect->m_pEffectModel = NULL;
+	//	CEffectModel *pEffectModel = (CEffectModel*)m_EffectModels.Top();
+	//	while (pEffectModel) {
+	//		if (!memcmp(pEffect->m_target, pEffectModel->m_type, 4) &&
+	//			pEffect->m_ModelType == pEffectModel->m_ModelType) {
+	//			pEffect->m_pEffectModel = pEffectModel;
+	//			break;
+	//		}
+	//		pEffectModel = (CEffectModel*)pEffectModel->Next;
+	//	}
+	//	pEffect = (CEffect*)pEffect->Next;
+	//}
+	// 終了
+	SAFE_DELETES(pdat);
 	return hr;
 }
 
@@ -1118,6 +1894,13 @@ bool CArea::LoadMAP()
 	if( hr ) return false;
 	hr = LoadAreaFromFile( FileName, FVF );
 	if( hr ) return false;
+	//InitEffectModel();
+	//LoadEffectModelFromFile(FileName);
+	//LoadEffectModel2FromFile(FileName);
+	InitEffect();
+	LoadEffectFromFile(FileName);
+	//InitSchedule();
+	//LoadScheduleFromFile(FileName);
 	return true;
 }
 

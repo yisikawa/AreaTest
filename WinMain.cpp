@@ -635,16 +635,16 @@ char szFPath[256], szFName[256], strmsg[256];
 				}
 			}
 			if (LOWORD(wParam) == ID_MNU_EFFT) {
-				wsprintf(strmsg, "This feature is not supported", szFPath);
-				MessageBox(NULL, strmsg, "not supported", MB_OK | MB_ICONINFORMATION);
-	/*			sfn.lpstrTitle = "MQO Save Effect Data";
+				//wsprintf(strmsg, "This feature is not supported", szFPath);
+				//MessageBox(NULL, strmsg, "not supported", MB_OK | MB_ICONINFORMATION);
+				sfn.lpstrTitle = "MQO Save Effect Data";
 				if (GetSaveFileName(&sfn)){
 					if (!g_mArea.saveMQO2(szFPath, szFName, g_mAt.x, g_mAt.y, g_mAt.z)) {
 						wsprintf(strmsg, "File %s could not be processed correctly", szFPath);
 						MessageBox(NULL, strmsg, "Open Save File", MB_OK | MB_ICONINFORMATION);
 					}
 				}
-	*/		}
+			}
 			if (LOWORD(wParam) == ID_MNU_EXIT) {
 				if( MessageBox(NULL, "Do you really want to quit?", "Quit Program", MB_YESNO | MB_ICONQUESTION ) == IDYES ) {
 					SendMessage(hWnd, WM_CLOSE, 0L, 0L);
