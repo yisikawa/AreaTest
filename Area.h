@@ -173,6 +173,43 @@ public:
 }
 CTexture, LPCTexture;
 
+//======================================================================
+// エリアメッシュクラス
+//======================================================================
+typedef class CAreaMesh : public CListBase
+{
+	friend class CArea;
+
+protected:
+	list<CStream>			m_LStreams;
+	D3DXVECTOR3				m_BoxLow, m_BoxHigh;
+	unsigned long			m_NumVertices, m_NumFaces, m_NumIndex, m_VBSize, m_IBSize, m_FVF;
+	LPDIRECT3DVERTEXBUFFER9 m_lpVB;
+	LPDIRECT3DINDEXBUFFER9	m_lpIB;
+	char					m_AreaName[18], m_AreaType[4];
+
+public:
+	CAreaMesh();
+	virtual		~CAreaMesh();
+	virtual		void		SetBoxLow(D3DXVECTOR3 BoxLow) { m_BoxLow = BoxLow; }
+	virtual		D3DXVECTOR3	GetBoxLow(void) { return m_BoxLow; }
+	virtual		void		SetBoxHigh(D3DXVECTOR3 BoxHigh) { m_BoxHigh = BoxHigh; }
+	virtual		D3DXVECTOR3	GetBoxHigh(void) { return m_BoxHigh; }
+	virtual		void		SetNumVertices(unsigned long NumVertices) { m_NumVertices = NumVertices; }
+	virtual		unsigned long	GetNumVertices(void) { return m_NumVertices; }
+	virtual		void		SetNumFaces(unsigned long NumFaces) { m_NumFaces = NumFaces; }
+	virtual		unsigned long	GetNumFaces(void) { return m_NumFaces; }
+	virtual		void		SetlpVB(LPDIRECT3DVERTEXBUFFER9 lpVB) { m_lpVB = lpVB; }
+	virtual		LPDIRECT3DVERTEXBUFFER9	GetlpVB(void) { return m_lpVB; }
+	virtual		void		SetlpIB(LPDIRECT3DINDEXBUFFER9 lpIB) { m_lpIB = lpIB; }
+	virtual		LPDIRECT3DINDEXBUFFER9	GetlpIB(void) { return m_lpIB; }
+	virtual		void		SetAreaName(char *pAreaName) { strcpy(m_AreaName, pAreaName); }
+	virtual		char*		GetAreaName(void) { return m_AreaName; }
+	virtual		HRESULT		LoadAreaMesh(char *pFile, CArea *pArea, unsigned long FVF);
+	virtual     int			countTextures(void);
+}
+CAreaMesh, *LPCAreaMesh;
+
 //=============================================================
 // KeyFrame
 // 線形補間によるキーフレームアニメーションクラス
@@ -242,6 +279,7 @@ public:
 	int				m_subID;		// ターゲット処理方法
 	char			m_name[4],		// エフェクトID
 		m_target[4];	//
+	CAreaMesh		*m_pAreaMesh;	// エリアメッシュポインタ
 	DWORD			m_lifeTime;		// 存続時間
 	int				m_dir1;			// 01 ビルボード　40 XXX
 	int				m_dir2;			// 40 ビルボードに近い
@@ -290,42 +328,6 @@ public:
 }
 CEffect, *LPCEffect;
 
-//======================================================================
-// エリアメッシュクラス
-//======================================================================
-typedef class CAreaMesh : public CListBase
-{
-	friend class CArea;
-
-protected:
-	list<CStream>			m_LStreams;
-	D3DXVECTOR3				m_BoxLow,m_BoxHigh;
-	unsigned long			m_NumVertices,m_NumFaces,m_NumIndex,m_VBSize,m_IBSize,m_FVF;
-	LPDIRECT3DVERTEXBUFFER9 m_lpVB;
-	LPDIRECT3DINDEXBUFFER9	m_lpIB;
-	char					m_AreaName[18],m_AreaType[4];
-
-public:
-	CAreaMesh();
-	virtual		~CAreaMesh();
-	virtual		void		SetBoxLow( D3DXVECTOR3 BoxLow ) { m_BoxLow = BoxLow; }
-	virtual		D3DXVECTOR3	GetBoxLow( void ) { return m_BoxLow; }	
-	virtual		void		SetBoxHigh( D3DXVECTOR3 BoxHigh ) { m_BoxHigh = BoxHigh; }
-	virtual		D3DXVECTOR3	GetBoxHigh( void ) { return m_BoxHigh; }	
-	virtual		void		SetNumVertices( unsigned long NumVertices ) { m_NumVertices = NumVertices; }
-	virtual		unsigned long	GetNumVertices( void ) { return m_NumVertices; }	
-	virtual		void		SetNumFaces( unsigned long NumFaces ) { m_NumFaces = NumFaces; }
-	virtual		unsigned long	GetNumFaces( void ) { return m_NumFaces; }	
-	virtual		void		SetlpVB( LPDIRECT3DVERTEXBUFFER9 lpVB ) { m_lpVB = lpVB; }
-	virtual		LPDIRECT3DVERTEXBUFFER9	GetlpVB( void ) { return m_lpVB; }	
-	virtual		void		SetlpIB( LPDIRECT3DINDEXBUFFER9 lpIB ) { m_lpIB = lpIB; }
-	virtual		LPDIRECT3DINDEXBUFFER9	GetlpIB( void ) { return m_lpIB; }	
-	virtual		void		SetAreaName( char *pAreaName ) { strcpy(m_AreaName,pAreaName); }
-	virtual		char*		GetAreaName(void) { return m_AreaName; }
-	virtual		HRESULT		LoadAreaMesh( char *pFile, CArea *pArea, unsigned long FVF );
-	virtual     int			countTextures(void);
-}
-CAreaMesh, *LPCAreaMesh;
 
 //======================================================================
 // ベースデータクラス

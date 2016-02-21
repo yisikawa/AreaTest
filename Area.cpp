@@ -1072,6 +1072,7 @@ HRESULT CAreaMesh::LoadAreaMesh( char *pFile, CArea *pArea, unsigned long FVF )
 
 	// エリアデータの判定
 
+	memcpy(m_AreaType, pFile, 4);
 	aFlag = *pFile;bFlag = *(pFile+4);
 	pFile += 16;
 //	if( *(pFile+4)!=1 ) return -1;
@@ -1455,21 +1456,21 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		}
 		pos += next;
 	}
-	//pEffect = (CEffect*)m_Effects.Top();
-	//while (pEffect) {
-	//	pEffect->m_pEffectModel = NULL;
-	//	CEffectModel *pEffectModel = (CEffectModel*)m_EffectModels.Top();
-	//	while (pEffectModel) {
-	//		if (!memcmp(pEffect->m_target, pEffectModel->m_type, 4) &&
-	//			pEffect->m_ModelType == pEffectModel->m_ModelType) {
-	//			pEffect->m_pEffectModel = pEffectModel;
-	//			break;
-	//		}
-	//		pEffectModel = (CEffectModel*)pEffectModel->Next;
-	//	}
-	//	pEffect = (CEffect*)pEffect->Next;
-	//}
-	// 終了
+	pEffect = (CEffect*)m_Effects.Top();
+	while (pEffect) {
+		pEffect->m_pAreaMesh = NULL;
+		CAreaMesh *pAreaMesh = (CAreaMesh *)m_EffMeshs.Top();
+		while (pAreaMesh) {
+			if (!memcmp(pEffect->m_target, pAreaMesh->m_AreaType, 4) 
+	//			&& pEffect->m_ModelType == pEffectModel->m_ModelType
+			) {
+				pEffect->m_pAreaMesh = pAreaMesh;
+				break;
+			}
+			pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+		}
+		pEffect = (CEffect*)pEffect->Next;
+	}
 	SAFE_DELETES(pdat);
 	return hr;
 }
