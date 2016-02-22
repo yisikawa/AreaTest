@@ -1230,11 +1230,11 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 				pI = pIndex + its2->GetIndexStart();
 				nFace = 0;
 				for (nVer = 0; nVer < its2->GetFaceCount() + 2;) {
-					i1 = (*pI++) - idxmin; nVer++; i2 = (*pI++) - idxmin; nVer++;
+					i1 = *pI++ - idxmin; nVer++; i2 = *pI++ - idxmin; nVer++;
 					while (nVer<its2->GetFaceCount() + 2) {
-						i3 = (*pI++) - idxmin; nVer++;
+						i3 = *pI++ - idxmin; nVer++;
 						if (i2 == i3) {
-							*pI++; nVer++;
+							pI++; nVer++;
 							break;
 						}
 						nFace++;
@@ -1252,7 +1252,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 					while( nVer<its2->GetFaceCount()+2 )  {
 						i3 = (*pI++) - idxmin; nVer++;
 						if (i2 == i3) {
-							*pI++; nVer++; break;
+							pI++; nVer++; break;
 						}
 						if ( nVer % 2) {
 							t1 = i3; t2 = i2; t3 = i1;
@@ -1398,7 +1398,7 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 					while (nVer<its2->GetFaceCount() + 2) {
 						i3 = (*pI++) - idxmin; nVer++;
 						if (i2 == i3) {
-							*pI++; nVer++;
+							pI++; nVer++;
 							break;
 						}
 						nFace++;
@@ -1416,7 +1416,7 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 					while (nVer<its2->GetFaceCount() + 2)  {
 						i3 = (*pI++) - idxmin; nVer++;
 						if (i2 == i3) {
-							*pI++; nVer++; break;
+							pI++; nVer++; break;
 						}
 						if (nVer % 2) {
 							t1 = i3; t2 = i2; t3 = i1;
