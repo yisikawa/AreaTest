@@ -633,7 +633,6 @@ void CEffect::InitData(void)
 	m_kfrx = m_kfry = m_kfrz = NULL;
 	m_kfsx = m_kfsy = m_kfsz = NULL;
 	m_kfu = m_kfv = NULL;
-	m_EffectObj.Release();
 }
 
 void CEffect::Set1F(int no)
@@ -671,6 +670,11 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 	D3DXMATRIX	AreaMatrix, TempMatrix;
 	int			num, dat1Adr, dat2Adr, dat3Adr, dat4Adr;
 
+	D3DXMatrixIdentity(&m_mRootTransform);
+	m_p01.x = m_p01.y = m_p01.z = 0.f;
+	m_r09.x = m_r09.y = m_r09.z = 0.f;
+	m_s0F.x = m_s0F.y = m_s0F.z = 1.f;
+	m_color.r = m_color.g = m_color.b = m_color.a = 1.f;
 	memcpy(m_name, pBuff, 4);
 	pAdr = pBuff;
 	dat1Adr = *((int*)(pAdr + 0x80));
@@ -769,7 +773,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_r0B.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
-		case 0x0c:// ‰ñ“]·•ª
+		case 0x0c:// ‰ñ“]·•ª@‚ä‚ç‚¬H
 			m_r0C.x = *((float*)(pAdr + 4));
 			m_r0C.y = *((float*)(pAdr + 8));
 			m_r0C.z = *((float*)(pAdr + 12));
@@ -1017,6 +1021,12 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			break;
 		}
 	}
+	D3DXMATRIX pmat;
+	D3DXMatrixRotationX(&pmat, m_r09.x); m_mRootTransform *= pmat;
+	D3DXMatrixRotationY(&pmat, m_r09.y); m_mRootTransform *= pmat;
+	D3DXMatrixRotationZ(&pmat, m_r09.z); m_mRootTransform *= pmat;
+	D3DXMatrixScaling(&pmat, m_s0F.x, m_s0F.y, m_s0F.z); m_mRootTransform *= pmat;
+	D3DXMatrixTranslation(&pmat, m_p01.x, m_p01.y, m_p01.z); m_mRootTransform *= pmat;
 }
 
 
@@ -1946,7 +1956,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 		if (pTexture == NULL) continue;
 		char	texName[256];
 		strcpy(texName, pTexture->GetTexName()); Trim(texName);
-		fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
+		fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
 		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.bmp\")\n", texName);
 		sprintf(texpath, "%s%s.bmp", FPath, texName);
 		D3DXSaveTextureToFile(texpath, D3DXIFF_BMP, pTexture->GetTexture(), NULL);
@@ -1995,7 +2005,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 		list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
 		for (int count = 0; its2 != ite2; its2++, count++) {
 			fprintf(fd, "Object \"%s%02d\" {\n", pAreaMesh->GetAreaName(), count);
-			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
+			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
 			pI = pIndex + its2->GetIndexStart();
 			idxmin = 65535; idxmax = 0;
 			for (unsigned int i = 0; i < its2->GetFaceCount() + 2; i++) {
@@ -2133,7 +2143,7 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 		if (pTexture == NULL) continue;
 		char	texName[256];
 		strcpy(texName, pTexture->GetTexName()); Trim(texName);
-		fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
+		fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
 		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.bmp\")\n", texName);
 		sprintf(texpath, "%s%s.bmp", FPath, texName);
 		D3DXSaveTextureToFile(texpath, D3DXIFF_BMP, pTexture->GetTexture(), NULL);
@@ -2159,7 +2169,8 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 		list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
 		for (int count = 0; its2 != ite2; its2++, count++) {
 			fprintf(fd, "Object \"%s%02d\" {\n", pAreaMesh->GetAreaName(), count);
-			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
+			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
+//			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
 			pI = pIndex + its2->GetIndexStart();
 			idxmin = 65535; idxmax = 0;
 			for (unsigned int i = 0; i < its2->GetFaceCount() + 2; i++) {

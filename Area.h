@@ -304,7 +304,6 @@ public:
 	DWORD			m_kind1,		// 不明種別１
 		m_kind2;		// 不明種別２
 	float			m_08dist;		// 0x08の中心からの距離
-	CList			m_EffectObj;	// エフェクト・オブジェクトのリスト
 	CKeyFrame		*m_Rd,				// 赤のキーフレーム
 		*m_Gr,				// 緑のキーフレーム
 		*m_Bl,				// 青のキーフレーム
