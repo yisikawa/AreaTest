@@ -707,11 +707,17 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 	pAdr = pBuff + dat2Adr;
 	WORD	mtype;
 	DWORD	col;
+	D3DXMATRIX pmat;
 	while (pAdr<(pBuff + dat3Adr)) {
 		type = *pAdr;
 		num = (int)*(pAdr + 1); num &= 0x0f;
 		switch (type) {
 		case 0x00:
+			D3DXMatrixRotationX(&pmat, m_r09.x); m_mRootTransform *= pmat;
+			D3DXMatrixRotationY(&pmat, m_r09.y); m_mRootTransform *= pmat;
+			D3DXMatrixRotationZ(&pmat, m_r09.z); m_mRootTransform *= pmat;
+			D3DXMatrixScaling(&pmat, m_s0F.x, m_s0F.y, m_s0F.z); m_mRootTransform *= pmat;
+			D3DXMatrixTranslation(&pmat, m_p01.x, m_p01.y, m_p01.z); m_mRootTransform *= pmat;
 			return;
 		case 0x01: // オフセット
 			memcpy(m_target, pAdr + 12, 4);
@@ -1021,12 +1027,6 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			break;
 		}
 	}
-	D3DXMATRIX pmat;
-	D3DXMatrixRotationX(&pmat, m_r09.x); m_mRootTransform *= pmat;
-	D3DXMatrixRotationY(&pmat, m_r09.y); m_mRootTransform *= pmat;
-	D3DXMatrixRotationZ(&pmat, m_r09.z); m_mRootTransform *= pmat;
-	D3DXMatrixScaling(&pmat, m_s0F.x, m_s0F.y, m_s0F.z); m_mRootTransform *= pmat;
-	D3DXMatrixTranslation(&pmat, m_p01.x, m_p01.y, m_p01.z); m_mRootTransform *= pmat;
 }
 
 
@@ -1452,14 +1452,22 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		pos += next;
 	}
 	pos = 0;
+	char effType[4]; effType[0] = '\0';
 	while (pos<dwSize) {
 		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
 		if (next<16) break;
 		if (next + pos>dwSize) break;
 		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
 		switch (type) {
+		case 0x00:
+			effType[0] = '\0';
+			break;
+		case 0x01:
+			memcpy(effType, pdat + pos, 4);
+			break;
 		case 0x05:
 			pEffect = new CEffect;
+			memcpy(pEffect->m_effType, effType, 4);
 			pEffect->GetEffectMatrix(pdat + pos, (CKeyFrame*)m_KeyFrames.Top());
 			m_Effects.InsertTop(pEffect);
 			break;
@@ -2115,6 +2123,7 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 	WORD			*pIndex, *pI;
 	int				cnt, nVer, nFace, idxmin, idxmax;
 	int				i1, i2, i3, t1, t2, t3;
+	CEffect         *pEffect;
 	CAreaMesh		*pAreaMesh;
 	D3DXMATRIX		RootMatrix,AreaMatrix;
 	D3DXVECTOR3		BL, BL2, BL3, BL4, BH, BH2, BH3, BH4;
@@ -2151,9 +2160,17 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 		texNo++;
 	}
 	fprintf(fd, "}\n");
-	AreaMatrix = RootMatrix;
-	pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
-	while (pAreaMesh) {
+//	pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
+//	while (pAreaMesh) {
+	pEffect = (CEffect*)m_Effects.Top();
+	while (pEffect) {
+		if ( (pAreaMesh = pEffect->m_pAreaMesh) == NULL) {
+			pEffect = (CEffect*)pEffect->Next;
+			continue;
+		} else {
+			AreaMatrix = RootMatrix;
+			AreaMatrix *= pEffect->m_mRootTransform;
+		}
 		ptr = pAreaMesh->GetAreaName();
 		*(ptr + 17) = 0x0;
 		for (int i = 0; i < 18; i++) {
@@ -2262,7 +2279,8 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 		//break;
 		pAreaMesh->m_lpIB->Unlock();
 		pAreaMesh->m_lpVB->Unlock();
-		pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+//		pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+		pEffect = (CEffect*)pEffect->Next;
 	}
 	fprintf(fd, "EOF");
 	fclose(fd);

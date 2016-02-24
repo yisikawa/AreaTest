@@ -277,6 +277,7 @@ public:
 		m_1fdiv;		// 0x1Fデーターでdiv+1/360で発生
 	int				m_interval;		// 発生間隔
 	int				m_subID;		// ターゲット処理方法
+	char			m_effType[4];   // エフェクトタイプ effe,fefs,ligh等
 	char			m_name[4],		// エフェクトID
 		m_target[4];	//
 	CAreaMesh		*m_pAreaMesh;	// エリアメッシュポインタ
