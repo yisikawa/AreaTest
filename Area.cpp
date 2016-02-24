@@ -2168,8 +2168,10 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 			pEffect = (CEffect*)pEffect->Next;
 			continue;
 		} else {
-			AreaMatrix = RootMatrix;
-			AreaMatrix *= pEffect->m_mRootTransform;
+			//AreaMatrix = RootMatrix;
+			//AreaMatrix *= pEffect->m_mRootTransform;
+			AreaMatrix = pEffect->m_mRootTransform;
+			AreaMatrix *= RootMatrix;
 		}
 		ptr = pAreaMesh->GetAreaName();
 		*(ptr + 17) = 0x0;
