@@ -713,11 +713,16 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 		num = (int)*(pAdr + 1); num &= 0x0f;
 		switch (type) {
 		case 0x00:
-			D3DXMatrixRotationX(&pmat, m_r09.x); m_mRootTransform *= pmat;
-			D3DXMatrixRotationY(&pmat, m_r09.y); m_mRootTransform *= pmat;
-			D3DXMatrixRotationZ(&pmat, m_r09.z); m_mRootTransform *= pmat;
-			D3DXMatrixScaling(&pmat, m_s0F.x, m_s0F.y, m_s0F.z); m_mRootTransform *= pmat;
-			D3DXMatrixTranslation(&pmat, m_p01.x, m_p01.y, m_p01.z); m_mRootTransform *= pmat;
+			D3DXMatrixScaling(&pmat, m_s0F.x, m_s0F.y, m_s0F.z);
+			D3DXMatrixMultiply(&m_mRootTransform, &m_mRootTransform, &pmat);
+			D3DXMatrixRotationZ(&pmat, m_r09.z);
+			D3DXMatrixMultiply(&m_mRootTransform, &m_mRootTransform, &pmat);
+			D3DXMatrixRotationY(&pmat, m_r09.y);
+			D3DXMatrixMultiply(&m_mRootTransform, &m_mRootTransform, &pmat);
+			D3DXMatrixRotationX(&pmat, m_r09.x);
+			D3DXMatrixMultiply(&m_mRootTransform, &m_mRootTransform, &pmat);
+			D3DXMatrixTranslation(&pmat, m_p01.x, m_p01.y, m_p01.z);
+			D3DXMatrixMultiply(&m_mRootTransform, &m_mRootTransform, &pmat);
 			return;
 		case 0x01: // オフセット
 			memcpy(m_target, pAdr + 12, 4);
