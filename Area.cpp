@@ -332,6 +332,217 @@ IDirect3DTexture9 *CTexture::GetTexture( void )
 {
 	return m_pTexture;
 }
+
+//									CEffectModel													//
+//		コンストラクタ
+CEffectModel::CEffectModel()
+{
+	m_ModelType = 0;
+	m_ModelTotal = 0;
+	m_ModelNo = 0;
+	m_pTexture = NULL;
+	m_lpVB = NULL;
+	m_lpIB = NULL;
+	m_NumIndex = m_NumVertices = m_NumFaces = m_VBSize = m_IBSize = m_FVF = 0;
+}
+
+//		デストラクタ
+CEffectModel::~CEffectModel()
+{
+	m_pTexture = NULL;
+	SAFE_RELEASE(m_lpVB);
+	SAFE_RELEASE(m_lpIB);
+}
+
+const DWORD FVF_EFFECT = (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+const DWORD FVF_EFFECT2 = (D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+
+#pragma pack(push,2)
+
+typedef struct{
+	DWORD	L;
+	unsigned char	numImage;	// 使用するイメージ数。上のデータの後にこの個数分IDが続く
+	unsigned char	numNonImage; // イメージを使わないデータの数。
+	WORD			numFace, numFace1, numFace2, Flag;
+	char				name[16];			//      名前
+} DAT1FH;
+
+typedef struct{
+	WORD		S1, S2, S3, S4;
+	char		name[16];			//      名前
+	WORD		S5, S6;
+} DAT21H;
+
+typedef struct{
+	char		name[16];			//      名前
+	BYTE		Ver;				//0x00
+	BYTE		nazo;				//0x01
+	WORD		Type;				//0x02 &7f==0モデル 1=クロス
+	WORD		Flip;				//0x04 0==OFF  ON
+} DAT2AH;
+
+typedef struct
+{
+	float	x, y, z;     //座標
+	float	hx, hy, hz;  //法線ベクトル
+	DWORD	color;
+	float	u, v;
+} EFFECTVERTEX;
+
+typedef struct
+{
+	float	x, y, z;     //座標
+	DWORD	color;
+	float	u, v;
+} EFFECT2VERTEX;
+#pragma pack(pop)
+
+//		エフェクトモデル読み込み
+HRESULT CEffectModel::LoadEffectModel(char *pFile)
+{
+	HRESULT hr = D3D_OK;
+
+
+	//==============================================================
+	// メッシュの生成
+	//==============================================================
+	int				NumFaces, NumVertices;
+	EFFECTVERTEX	*pVertex;
+
+	m_ModelType = 0x1f;
+	m_ModelTotal = 0;
+	m_ModelNo = 0;
+	memcpy(m_type, pFile, 4);
+	DAT1FH		*pcp = (DAT1FH *)(pFile + 16);
+	pVertex = (EFFECTVERTEX*)(pFile + 16 + sizeof(DAT1FH));
+	memcpy(m_Name, pcp->name, 16); m_Name[16] = '\0';
+	NumFaces = pcp->numFace & 0xff;
+	NumVertices = NumFaces * 3;
+	m_NumVertices = NumVertices;
+	m_NumFaces = NumFaces;
+	m_NumIndex = NumFaces * 3;
+	m_FVF = FVF_EFFECT;
+	m_VBSize = sizeof(EFFECTVERTEX)*NumVertices;
+	m_IBSize = m_NumIndex*sizeof(WORD);
+	hr = CreateIB(&m_lpIB, m_NumIndex*sizeof(WORD), 0);
+	if FAILED(hr) return hr;
+	hr = CreateVB(&m_lpVB, NumVertices*sizeof(EFFECTVERTEX), 0, FVF_EFFECT);
+	if FAILED(hr) return hr;
+	//==============================================================
+	// Mesh Data inport
+	//  Vertex Inport
+	EFFECTVERTEX*	pV;
+	if (FAILED(m_lpVB->Lock(0,                 // バッファの最初からデータを格納する。
+		m_VBSize, // ロードするデータのサイズ。
+		(void**)&pV, // 返されるインデックス データ。
+		D3DLOCK_DISCARD)))            // デフォルト フラグをロックに送る。
+		return E_FAIL;
+	for (int i = 0; i<NumVertices; i++, pV++) {
+		pV->x = pVertex[i].x; pV->y = pVertex[i].y; pV->z = pVertex[i].z;
+		pV->hx = pVertex[i].hx; pV->hy = pVertex[i].hy; pV->hz = pVertex[i].hz;
+		pV->color = pVertex[i].color;
+		pV->u = pVertex[i].u; pV->v = pVertex[i].v;
+	}
+	if (FAILED(hr = m_lpVB->Unlock())) {
+		return hr;
+	}
+	// Face Inport
+	WORD*	pIndex;
+	int		count;
+	if (FAILED(m_lpIB->Lock(0,                 // バッファの最初からデータを格納する。
+		m_IBSize, // ロードするデータのサイズ。
+		(void**)&pIndex, // 返されるインデックス データ。
+		D3DLOCK_DISCARD)))            // デフォルト フラグをロックに送る。
+		return E_FAIL;
+
+	count = 0;
+	for (int i = 0; i<NumFaces; i++) {
+		*pIndex++ = (WORD)count++;
+		*pIndex++ = (WORD)count++;
+		*pIndex++ = (WORD)count++;
+	}
+	if (FAILED(hr = m_lpIB->Unlock())) {
+		return hr;
+	}
+	return hr;
+}
+
+
+//		画像関係モデル読み込み
+HRESULT CEffectModel::LoadEffectModel2(char *pFile)
+{
+	HRESULT hr = D3D_OK;
+
+
+	//==============================================================
+	// メッシュの生成
+	//==============================================================
+	int				NumFaces, NumVertices;
+	EFFECT2VERTEX	*pVertex;
+
+	m_ModelType = 0x21;
+	m_ModelNo = 0;
+	memcpy(m_type, pFile, 4);
+	DAT21H		*pcp = (DAT21H *)(pFile + 16);
+	//	pVertex		=	(EFFECT2VERTEX*)(pFile+16+sizeof(DAT21H));
+	memcpy(m_Name, pcp->name, 16); m_Name[16] = '\0';
+	NumFaces = (pcp->S2 & 0xff) * 2;
+	NumVertices = NumFaces * 3;
+	m_NumVertices = NumVertices;
+	m_NumFaces = NumFaces;
+	m_ModelTotal = NumFaces / 2;
+	m_NumIndex = NumFaces * 3;
+	m_FVF = FVF_EFFECT;
+	m_VBSize = sizeof(EFFECTVERTEX)*NumVertices;
+	m_IBSize = m_NumIndex*sizeof(WORD);
+	hr = CreateIB(&m_lpIB, m_NumIndex*sizeof(WORD), 0);
+	if FAILED(hr) return hr;
+	hr = CreateVB(&m_lpVB, NumVertices*sizeof(EFFECTVERTEX), 0, FVF_EFFECT);
+	if FAILED(hr) return hr;
+	//==============================================================
+	// Mesh Data inport
+	//  Vertex Inport
+	EFFECTVERTEX*	pV;
+	if (FAILED(m_lpVB->Lock(0,                 // バッファの最初からデータを格納する。
+		m_VBSize, // ロードするデータのサイズ。
+		(void**)&pV, // 返されるインデックス データ。
+		D3DLOCK_DISCARD)))            // デフォルト フラグをロックに送る。
+		return E_FAIL;
+	char *pVer = (pFile + 16 + sizeof(DAT21H));
+	for (int i = 0; i<NumVertices; i++, pV++) {
+		if (i != 0 && (i % 6) == 0)
+			pVer += sizeof(DWORD);
+		pVertex = (EFFECT2VERTEX*)pVer;
+		pVer += sizeof(EFFECT2VERTEX);
+		pV->x = pVertex->x; pV->y = pVertex->y; pV->z = pVertex->z;
+		pV->hx = 0.f; pV->hy = 0.f; pV->hz = -1.f;
+		pV->color = pVertex->color;
+		pV->u = pVertex->u; pV->v = pVertex->v;
+	}
+	if (FAILED(hr = m_lpVB->Unlock())) {
+		return hr;
+	}
+	// Face Inport
+	WORD*	pIndex;
+	int		count;
+	if (FAILED(m_lpIB->Lock(0,                 // バッファの最初からデータを格納する。
+		m_IBSize, // ロードするデータのサイズ。
+		(void**)&pIndex, // 返されるインデックス データ。
+		D3DLOCK_DISCARD)))            // デフォルト フラグをロックに送る。
+		return E_FAIL;
+
+	count = 0;
+	for (int i = 0; i<NumFaces; i++) {
+		*pIndex++ = (WORD)count++;
+		*pIndex++ = (WORD)count++;
+		*pIndex++ = (WORD)count++;
+	}
+	if (FAILED(hr = m_lpIB->Unlock())) {
+		return hr;
+	}
+	return hr;
+}
+
 // CKeyFrame
 // デフォルトコンストラクタ
 //-------------------------------------------------------------
@@ -1492,9 +1703,166 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 			}
 			pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
 		}
+		pEffect->m_pEffectModel = NULL;
+		CEffectModel *pEffectModel = (CEffectModel*)m_EffectModels.Top();
+		while (pEffectModel) {
+			if (!memcmp(pEffect->m_target, pEffectModel->m_type, 4) &&
+				pEffect->m_ModelType == pEffectModel->m_ModelType) {
+				pEffect->m_pEffectModel = pEffectModel;
+				break;
+			}
+			pEffectModel = (CEffectModel*)pEffectModel->Next;
+		}
 		pEffect = (CEffect*)pEffect->Next;
 	}
 	SAFE_DELETES(pdat);
+	return hr;
+}
+//======================================================================
+//
+//		(0x1F)エフェクトモデルの読み込み
+//
+//	input
+//		char *filename			: 読み込みファイル名（リソース名でも可
+//		unsigned long FVF		: メッシュのFVF
+//
+//	output
+//		エラー文字列へのポインタ。
+//		正常終了の場合はNULL。
+//
+//======================================================================
+HRESULT CArea::LoadEffectModelFromFile(char *FileName)
+{
+	CEffectModel *pEffectModel;
+	CTexture	*pTexture;
+	DAT2AH	*pHeader;
+	HRESULT hr = S_OK;
+
+	//====================================================
+	// ファイルをメモリに取り込む
+	//====================================================
+	char *pdat = NULL;
+	int dwSize;
+	unsigned long	cnt;
+	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+	if (hFile != INVALID_HANDLE_VALUE){
+		dwSize = GetFileSize(hFile, NULL);
+		pdat = new char[dwSize];
+		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
+		CloseHandle(hFile);
+		hr = 0;
+	}
+	else {
+		return -1;
+	}
+	//====================================================
+	// メッシュの読み込み
+	//====================================================
+	int			type, pos = 0, next;
+	while (pos<dwSize) {
+		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
+		if (next<16) break;
+		if (next + pos>dwSize) break;
+		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
+		switch (type) {
+		case 0x1F: // EffectModel
+			pHeader = (DAT2AH*)(pdat + pos);
+			pEffectModel = new CEffectModel;
+			m_EffectModels.InsertTop(pEffectModel);
+			pEffectModel->LoadEffectModel(pdat + pos);
+			pTexture = (CTexture*)m_Textures.Top();
+			int texno = 0;
+			while (pTexture != NULL) {
+				if (!memcmp(pEffectModel->m_Name, pTexture->m_TexName, 16)){
+					pEffectModel->m_texNo = texno;
+					pEffectModel->m_pTexture = pTexture;
+					break;
+				}
+				texno++;
+				pTexture = (CTexture*)pTexture->Next;
+			}
+		}
+		pos += next;
+	}
+	// 終了
+	delete pdat;
+	return hr;
+}
+
+//======================================================================
+//
+//		（0x21）エフェクト2モデルの読み込み
+//
+//	input
+//		char *filename			: 読み込みファイル名（リソース名でも可
+//		unsigned long FVF		: メッシュのFVF
+//
+//	output
+//		エラー文字列へのポインタ。
+//		正常終了の場合はNULL。
+//
+//======================================================================
+HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
+{
+	DAT2AH	*pHeader;
+	HRESULT hr = S_OK;
+
+	//====================================================
+	// ファイルをメモリに取り込む
+	//====================================================
+	char *pdat = NULL;
+	int dwSize;
+	unsigned long	cnt;
+	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+	if (hFile != INVALID_HANDLE_VALUE){
+		dwSize = GetFileSize(hFile, NULL);
+		pdat = new char[dwSize];
+		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
+		CloseHandle(hFile);
+		hr = 0;
+	}
+	else {
+		return -1;
+	}
+
+	//====================================================
+	// メッシュの読み込み
+	//====================================================
+	int			count = 0, type, pos = 0, next;
+	CTexture		*pTexture;
+	while (pos<dwSize) {
+		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
+		if (next<16) break;
+		if (next + pos>dwSize) break;
+		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
+		switch (type) {
+		case 0x21: // EffectModel
+			pHeader = (DAT2AH*)(pdat + pos);
+			CEffectModel *pEffectModel = new CEffectModel;
+			m_EffectModels.InsertTop(pEffectModel);
+			pEffectModel->LoadEffectModel2(pdat + pos);
+			if (pEffectModel->m_ModelTotal <= 0) {
+				m_EffectModels.Erase(pEffectModel);
+				SAFE_DELETE(pEffectModel);
+			}
+			else {
+				pTexture = (CTexture*)m_Textures.Top();
+				int texno = 0;
+				while (pTexture != NULL) {
+					if (!memcmp(pEffectModel->m_Name, pTexture->m_TexName, 16)){
+						pEffectModel->m_texNo = texno;
+						pEffectModel->m_pTexture = pTexture;
+						break;
+					}
+					texno++;
+					pTexture = (CTexture*)pTexture->Next;
+				}
+			}
+		}
+		pos += next;
+	}
+	// 終了
+	delete pdat;
 	return hr;
 }
 
@@ -1911,15 +2279,15 @@ bool CArea::LoadMAP()
 	//  ファイルのロード
 	HRESULT hr;
 	//　テクスチャ、メッシュのロード
-//	hr = LoadTextureFromFile( FileName2 );
-//	if( hr ) return false;
+	hr = LoadTextureFromFile( FileName2 );
+	if( hr ) return false;
 	hr = LoadTextureFromFile( FileName );
 	if( hr ) return false;
 	hr = LoadAreaFromFile( FileName, FVF );
 	if( hr ) return false;
-	//InitEffectModel();
-	//LoadEffectModelFromFile(FileName);
-	//LoadEffectModel2FromFile(FileName);
+	InitEffectModel();
+	LoadEffectModelFromFile(FileName);
+	LoadEffectModel2FromFile(FileName);
 	InitEffect();
 	LoadEffectFromFile(FileName);
 	//InitSchedule();
@@ -2287,6 +2655,126 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 		pAreaMesh->m_lpIB->Unlock();
 		pAreaMesh->m_lpVB->Unlock();
 //		pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+		pEffect = (CEffect*)pEffect->Next;
+	}
+	fprintf(fd, "EOF");
+	fclose(fd);
+	return true;
+}
+//======================================================================
+//		MQOセーブ データをMQOフォーマットで出力します
+//======================================================================
+bool CArea::saveMQO3(char *FPath, char *FName){
+	FILE			*fd;
+	char			*ptr, path[256], texpath[256];
+	EFFECTVERTEX	*pVertex, *pV;
+	D3DXVECTOR3     mVer;
+	CEffect         *pEffect;
+	CEffectModel	*pEffMdl;
+	WORD			*pIndex, *pI;
+	int				i1, i2, i3, t1, t2, t3;
+	D3DXMATRIX		RootMatrix, EffectMatrix;
+
+	D3DXMatrixRotationZ(&RootMatrix, PAI);
+	if ((ptr = strrstr(FPath, FName))) *ptr = '\0';
+	if ((ptr = strrstr(FName, ".mqo"))) *ptr = '\0';
+	sprintf(path, "%s%s.mqo", FPath, FName);
+	HANDLE hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+	if (hFile != INVALID_HANDLE_VALUE) {
+		CloseHandle(hFile);
+	}
+	if ((fd = fopen(path, "w")) == NULL) return false;
+	fprintf(fd, "Metasequoia Document\nFormat Text Ver 1.0\n\nScene {\n");
+	fprintf(fd, "	pos 0.0000 0.0000 5000.0000\n");
+	fprintf(fd, "	lookat 0.0000 0.0000 0.0000\n");
+	fprintf(fd, "	head 0.0000\n");
+	fprintf(fd, "	pich 0.0000\n");
+	fprintf(fd, "	ortho 1\n");
+	fprintf(fd, "	zoom2 2.0000\n");
+	fprintf(fd, "	amb 0.250 0.250 0.250\n}\nMaterial ");
+	fprintf(fd, "%d {\n", m_Textures.Count);
+	CTexture *pTexture = (CTexture*)m_Textures.Top();
+	char	texName[256];
+	while (pTexture != NULL) {
+		if (pTexture == NULL) continue;
+		strcpy(texName, pTexture->m_TexName); Trim(texName);
+		fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
+		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.bmp\")\n", texName);
+		sprintf(texpath, "%s%s.bmp", FPath, texName);
+		D3DXSaveTextureToFile(texpath, D3DXIFF_BMP, pTexture->GetTexture(), NULL);
+		pTexture = (CTexture*)pTexture->Next;
+	}
+	fprintf(fd, "}\n");
+	pEffect = (CEffect*)m_Effects.Top();
+	while (pEffect) {
+		if ((pEffMdl = pEffect->m_pEffectModel) == NULL) {
+			pEffect = (CEffect*)pEffect->Next;
+			continue;
+		} else {
+			//AreaMatrix = RootMatrix;
+			//AreaMatrix *= pEffect->m_mRootTransform;
+			EffectMatrix = pEffect->m_mRootTransform;
+			EffectMatrix *= RootMatrix;
+		}
+		char	objName[256];
+		strcpy(objName, pEffMdl->m_Name); Trim(objName);
+		fprintf(fd, "Object \"%s\" {\n", objName);
+		fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
+		// バーテックスバッファをデバイスに設定
+		pEffMdl->m_lpVB->Lock(0, pEffMdl->m_VBSize, (void **)&pVertex, D3DLOCK_READONLY);
+		// インデックスバッファをデバイスに設定
+		pEffMdl->m_lpIB->Lock(0, pEffMdl->m_IBSize, (void **)&pIndex, D3DLOCK_READONLY);
+		switch (pEffMdl->m_ModelType) {
+			case 0x21:
+				// 頂点出力
+				fprintf(fd, "vertex %d {\n", pEffMdl->m_NumVertices);
+				pV = pVertex;
+				for (int i = 0; i <= pEffMdl->m_NumVertices; i++, pV++) {
+					mVer.x = pV->x; mVer.y = pV->y; mVer.z = pV->z;
+					D3DXVec3TransformCoord(&mVer, &mVer, &EffectMatrix);
+					fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
+				}
+				fprintf(fd, "\t}\n");
+				// 面出力
+				fprintf(fd, "face %d {\n", pEffMdl->m_NumFaces);
+				pI = pIndex;
+				for (int i = 0; i<pEffMdl->m_NumFaces; i++) {
+					i1 = *pI++; i2 = *pI++; i3 = *pI++;
+					t1 = i3; t2 = i2; t3 = i1;
+					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+						t1, t2, t3, pEffMdl->m_texNo,
+						(pVertex + t1)->u, (pVertex + t1)->v, (pVertex + t2)->u,
+						(pVertex + t2)->v, (pVertex + t3)->u, (pVertex + t3)->v);
+				}
+				fprintf(fd, "\t}\n");
+				break;
+			case 0x1f:
+				// 頂点出力
+				fprintf(fd, "vertex %d {\n", pEffMdl->m_NumVertices);
+				pV = pVertex;
+				for (int i = 0; i <= pEffMdl->m_NumVertices; i++, pV++) {
+					mVer.x = pV->x; mVer.y = pV->y; mVer.z = pV->z;
+					D3DXVec3TransformCoord(&mVer, &mVer, &EffectMatrix);
+					fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
+				}
+				fprintf(fd, "\t}\n");
+				// 面出力
+				fprintf(fd, "face %d {\n", pEffMdl->m_NumFaces);
+				pI = pIndex;
+				for (int i = 0; i<pEffMdl->m_NumFaces; i++) {
+					i1 = *pI++; i2 = *pI++; i3 = *pI++;
+					t1 = i3; t2 = i2; t3 = i1;
+					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+						t1, t2, t3, pEffMdl->m_texNo,
+						(pVertex + t1)->u, (pVertex + t1)->v, (pVertex + t2)->u,
+						(pVertex + t2)->v, (pVertex + t3)->u, (pVertex + t3)->v);
+				}
+				fprintf(fd, "\t}\n");
+				break;
+		}
+		fprintf(fd, "}\n");
+		pEffMdl->m_lpIB->Unlock();
+		pEffMdl->m_lpVB->Unlock();
 		pEffect = (CEffect*)pEffect->Next;
 	}
 	fprintf(fd, "EOF");

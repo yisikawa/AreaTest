@@ -31,6 +31,7 @@ BEGIN
     BEGIN
         MENUITEM "Save MQO",                    ID_MNU_META,MFT_STRING,MFS_ENABLED
         MENUITEM "Save MQO2",                   ID_MNU_EFFT,MFT_STRING | MFT_RIGHTORDER | MFT_RIGHTJUSTIFY,MFS_ENABLED
+        MENUITEM "Save MQO3",                   ID_MNU_EFF2,MFT_STRING,MFS_ENABLED
         MENUITEM "Quit",                        ID_MNU_EXIT,MFT_STRING,MFS_ENABLED
     END
     POPUP "Area(&O)",                       65535,MFT_STRING,MFS_ENABLED
@@ -144,12 +145,12 @@ BEGIN
         BLOCK "041104b0"
         BEGIN
             VALUE "CompanyName", "HOME"
-            VALUE "FileDescription", "ewhModel"
+            VALUE "FileDescription", "AreaTest"
             VALUE "FileVersion", "1, 0, 0, 1"
-            VALUE "InternalName", "ewhModel"
-            VALUE "LegalCopyright", "Copyright (C) 2004"
-            VALUE "OriginalFilename", "ewhModel.exe"
-            VALUE "ProductName", "HOME ewhModel"
+            VALUE "InternalName", "AreaTest"
+            VALUE "LegalCopyright", "Copyright (C) 2016"
+            VALUE "OriginalFilename", "AreaTest.exe"
+            VALUE "ProductName", "HOME AreaTest"
             VALUE "ProductVersion", "1, 0, 0, 1"
         END
     END

@@ -161,9 +161,9 @@ typedef class CTexture : public CListBase
 {
 protected:
 	IDirect3DTexture9	*m_pTexture;
-	char				m_TexName[18];
 
 public:
+	char				m_TexName[18];
 	CTexture();
 	virtual ~CTexture();
 	virtual void SetTexName( char *pTexName ) { strcpy(m_TexName,pTexName); }
@@ -210,9 +210,36 @@ public:
 }
 CAreaMesh, *LPCAreaMesh;
 
+//=======================================
+// CEffectModel エフェクトメッシュクラス
+//=======================================
+typedef class CEffectModel : public CListBase
+{
+
+protected:
+
+public:
+	int						m_texNo;
+	int						m_ModelType;
+	DWORD					m_ModelTotal;
+	DWORD					m_ModelNo;
+	IDirect3DVertexDeclaration9	*m_VertexFormat;
+	unsigned long			m_VertexSize;
+	CTexture				*m_pTexture;
+	unsigned long			m_NumVertices, m_NumFaces, m_NumIndex, m_VBSize, m_IBSize, m_FVF;
+	LPDIRECT3DVERTEXBUFFER9 m_lpVB;
+	LPDIRECT3DINDEXBUFFER9	m_lpIB;
+	char					m_Name[20];
+	char					m_type[4];
+	CEffectModel();
+	virtual		~CEffectModel();
+	virtual		HRESULT		LoadEffectModel(char *pFile);
+	virtual		HRESULT		LoadEffectModel2(char *pFile);
+}
+CEffectModel, *LPCEffectModel;
+
 //=============================================================
-// KeyFrame
-// 線形補間によるキーフレームアニメーションクラス
+// KeyFrame 線形補間によるキーフレームアニメーションクラス
 //=============================================================
 typedef class CKeyFrame : public CListBase
 {
@@ -281,6 +308,7 @@ public:
 	char			m_name[4],		// エフェクトID
 		m_target[4];	//
 	CAreaMesh		*m_pAreaMesh;	// エリアメッシュポインタ
+	CEffectModel	*m_pEffectModel;	// エフェクトモデル 0x1F 0x21
 	DWORD			m_lifeTime;		// 存続時間
 	int				m_dir1;			// 01 ビルボード　40 XXX
 	int				m_dir2;			// 40 ビルボードに近い
@@ -368,7 +396,6 @@ protected:
 	D3DXMATRIX					m_mRootTransform;
 	CList						m_AreaMeshs,m_EffMeshs;
 	CList						m_Effects;				// エフェクトリスト
-	CList						m_Schedules;			// スケジュールリスト
 	CList						m_KeyFrames;			// キーフレームリスト
 	CList						m_EffectModels;			// エフェクトモデルリスト
 	int							m_mArea;				// エリアファイル
@@ -383,6 +410,8 @@ public:
 	virtual ~CArea();
 	virtual HRESULT			LoadTextureFromFile( char *filename );
 	virtual	HRESULT			LoadEffectFromFile(char *FileName);
+	virtual	HRESULT			LoadEffectModelFromFile(char *FileName);
+	virtual	HRESULT			LoadEffectModel2FromFile(char *FileName);
 	virtual	void			DecodeMMB(BYTE* p);
 	virtual	void			DecodeMMBSub(BYTE* p);
 	virtual	void			DecodeMZB(BYTE* p);
@@ -395,6 +424,8 @@ public:
 	virtual	void			SetArea( int mArea ) { m_mArea	=	mArea; }
 	virtual bool	        saveMQO(char *FPath, char *FName,float posX,float posY,float posZ);
 	virtual bool	        saveMQO2(char *FPath, char *FName, float posX, float posY, float posZ);
+	virtual bool			saveMQO3(char *FPath, char *FName);
+
 	bool InitKeyFrame(void) {
 		CKeyFrame *pKeyFrame = (CKeyFrame*)m_KeyFrames.Top();
 		while (pKeyFrame) {
@@ -411,6 +442,15 @@ public:
 			pEffect = (CEffect*)pEffect->Next;
 		}
 		m_Effects.Release();
+		return true;
+	}
+	virtual bool    InitEffectModel(void){
+		CEffectModel *pEffectModel = (CEffectModel*)m_EffectModels.Top();
+		while (pEffectModel) {
+			pEffectModel->~CEffectModel();
+			pEffectModel = (CEffectModel*)pEffectModel->Next;
+		}
+		m_EffectModels.Release();
 		return true;
 	}
 }
