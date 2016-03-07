@@ -17,7 +17,7 @@
 // PROTOTYPE
 //======================================================================
 LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, UINT wParam, LONG lParam );
-LRESULT CALLBACK Dlg1Proc( HWND,UINT,WPARAM,LPARAM);
+LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARAM in_lParam);
 DWORD	ConvertStr2Dno( char* DataName );
 DWORD	ConvertStr2Dno2( char* DataName );
 BOOL GetFileNameFromDno(LPSTR filename,DWORD dwID);
@@ -54,6 +54,7 @@ D3DXVECTOR3	g_mEntry(0.f,0.f,0.f);
 int			g_mDispValue=0;
 int			g_mAreaBright=1;
 char		g_mWeather[6]="suny";
+char		g_className[6];
 
 
 // ñæÇÈÇ≥ï\é¶
@@ -367,8 +368,9 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 	D3DXVECTOR3		Pos,Post,DPos,Dview;
 	int				i,ComboNo;
 	char			ListName[256],ComboString[256];
-	int				w1,w2,w3;
+	int				index,w1,w2,w3;
 	char			ww[512];
+	CEffect			*pEffect;
 
 	switch( in_Message ) {
         case WM_INITDIALOG:
@@ -425,6 +427,33 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 						g_mEye = g_mAt; g_mEye.z += -5; g_mEye.y += 1.0;
 						//if( g_mArea.CalcEyePosition( &g_mAt, &Eye ) ) g_mEye = Eye;
 						D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
+						while (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETCOUNT, 0, 0) != 0) {
+							SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_DELETESTRING, 0, 0);
+						}
+						pEffect = (CEffect*)g_mArea.m_Effects.Top();
+						while (pEffect) {
+							index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_FINDSTRINGEXACT, 0, (LPARAM)pEffect->m_class);
+							if (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_FINDSTRINGEXACT,
+								0, (LPARAM)pEffect->m_class) < 0) {
+								SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_ADDSTRING, (WPARAM)0, (LPARAM)pEffect->m_class);
+							}
+							pEffect = (CEffect*)pEffect->Next;
+						}
+						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_SETCURSEL, (WPARAM)0, 0L);
+						while (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCOUNT, 0, 0) != 0) {
+							SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_DELETESTRING, 0, 0);
+						}
+						index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETCURSEL, (WORD)0, 0L);
+						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETLBTEXT, (WORD)index, (LONG)g_className);
+						pEffect = (CEffect*)g_mArea.m_Effects.Top();
+						while (pEffect) {
+							if (!memcmp(pEffect->m_class, g_className, 4)) {
+								sprintf(ComboString, "ID[%s] class[%s]", pEffect->m_name, pEffect->m_class);
+								SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_ADDSTRING, (WPARAM)0, (LPARAM)ComboString);
+							}
+							pEffect = (CEffect*)pEffect->Next;
+						}
+						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)0, 0L);
 					}
 					break;
 				case IDC_COMBO2:
@@ -437,13 +466,24 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 					break;
 				case IDC_COMBO3:
 					if( HIWORD(in_wParam) == CBN_SELCHANGE ) {
+						while (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCOUNT, 0, 0) != 0) {
+							SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_DELETESTRING, 0, 0);
+						}
+						index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETCURSEL, (WORD)0, 0L);
+						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETLBTEXT, (WORD)index, (LONG)g_className);
+						pEffect = (CEffect*)g_mArea.m_Effects.Top();
+						while (pEffect) {
+							if (!memcmp(pEffect->m_class, g_className, 4)) {
+								sprintf(ComboString, "ID[%s] class[%s]", pEffect->m_name, pEffect->m_class);
+								SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_ADDSTRING, (WPARAM)0, (LPARAM)ComboString);
+							}
+							pEffect = (CEffect*)pEffect->Next;
+						}
+						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)0, 0L);
 					}
 					break;
 				case IDC_COMBO4:
 					if( HIWORD(in_wParam) == CBN_SELCHANGE ) {
-						//	¥ÿ±ñæÇÈÇ≥ÇÃê›íË
-						ComboNo = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, 0L, 0L);
-						g_mAreaBright = ComboNo;
 					}
 					break;
 				case IDC_COMBO5:

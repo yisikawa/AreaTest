@@ -24,6 +24,7 @@
 #define IDC_EDIT5                       1021
 #define IDC_AREALOAD                    1022
 #define IDC_EDIT6                       1022
+#define IDC_COMBO7                      1023
 #define IDC_RADIO1                      1025
 #define IDC_COMBO13                     1026
 #define IDC_RADIO2                      1026
@@ -287,7 +288,7 @@
 #define ID_MNU_META                     40261
 #define ID_40262                        40262
 #define ID_MNU_EFFT                     40263
-#define ID_MNU_EFF2						40264
+#define ID_MNU_EFF2                     40264
 
 // Next default values for new objects
 // 

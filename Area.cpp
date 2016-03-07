@@ -36,7 +36,8 @@ extern	int			g_mAreaBright;
 extern	char		g_mWeather[];
 extern	float		g_mLightDist;
 extern	D3DXVECTOR3	g_mLightPosition;
-extern	D3DXMATRIX	g_mViewLight;					// ライトから見た場合のビューマトリックス
+extern	D3DXMATRIX	g_mViewLight;					// ライトから見た場合のビューマトリックス 
+extern	char		g_className[];
 
 
 int Trim(char *s) {
@@ -886,7 +887,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 	m_r09.x = m_r09.y = m_r09.z = 0.f;
 	m_s0F.x = m_s0F.y = m_s0F.z = 1.f;
 	m_color.r = m_color.g = m_color.b = m_color.a = 1.f;
-	memcpy(m_name, pBuff, 4);
+	memcpy(m_name, pBuff, 4); m_name[4] = '\0';
 	pAdr = pBuff;
 	dat1Adr = *((int*)(pAdr + 0x80));
 	dat2Adr = *((int*)(pAdr + 0x84));
@@ -1668,7 +1669,7 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		pos += next;
 	}
 	pos = 0;
-	char effType[4]; effType[0] = '\0';
+	char className[6]; className[0] = '\0';
 	while (pos<dwSize) {
 		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
 		if (next<16) break;
@@ -1676,14 +1677,15 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
 		switch (type) {
 		case 0x00:
-			effType[0] = '\0';
+			className[0] = '\0';
 			break;
 		case 0x01:
-			memcpy(effType, pdat + pos, 4);
+			memcpy(className, pdat + pos, 4); className[4] = '\0';
 			break;
 		case 0x05:
 			pEffect = new CEffect;
-			memcpy(pEffect->m_effType, effType, 4);
+			strcpy(pEffect->m_class, className);
+			pEffect->InitData();
 			pEffect->GetEffectMatrix(pdat + pos, (CKeyFrame*)m_KeyFrames.Top());
 			m_Effects.InsertTop(pEffect);
 			break;
@@ -2287,7 +2289,9 @@ bool CArea::LoadMAP()
 	if( hr ) return false;
 	InitEffectModel();
 	LoadEffectModelFromFile(FileName);
+	LoadEffectModelFromFile(FileName2);
 	LoadEffectModel2FromFile(FileName);
+	LoadEffectModel2FromFile(FileName2);
 	InitEffect();
 	LoadEffectFromFile(FileName);
 	//InitSchedule();
@@ -2537,6 +2541,10 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 //	while (pAreaMesh) {
 	pEffect = (CEffect*)m_Effects.Top();
 	while (pEffect) {
+		if (memcmp(pEffect->m_class, g_className, 4)) {
+			pEffect = (CEffect*)pEffect->Next;
+			continue;
+		}
 		if ( (pAreaMesh = pEffect->m_pAreaMesh) == NULL) {
 			pEffect = (CEffect*)pEffect->Next;
 			continue;
@@ -2707,6 +2715,10 @@ bool CArea::saveMQO3(char *FPath, char *FName){
 	fprintf(fd, "}\n");
 	pEffect = (CEffect*)m_Effects.Top();
 	while (pEffect) {
+		if (memcmp(pEffect->m_class, g_className, 4)) {
+			pEffect = (CEffect*)pEffect->Next;
+			continue;
+		}
 		if ((pEffMdl = pEffect->m_pEffectModel) == NULL) {
 			pEffect = (CEffect*)pEffect->Next;
 			continue;

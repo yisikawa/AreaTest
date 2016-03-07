@@ -9,8 +9,7 @@
 #include <stdio.h>
 #include <string>
 #include <list>
-#include <windows.h>
-#define IDC_STATIC -1
+
 
 using namespace std;
 //======================================================================
@@ -304,8 +303,8 @@ public:
 		m_1fdiv;		// 0x1Fデーターでdiv+1/360で発生
 	int				m_interval;		// 発生間隔
 	int				m_subID;		// ターゲット処理方法
-	char			m_effType[4];   // エフェクトタイプ effe,fefs,ligh等
-	char			m_name[4],		// エフェクトID
+	char			m_class[6];   // エフェクトタイプ effe,fefs,ligh等
+	char			m_name[6],		// エフェクトID
 		m_target[4];	//
 	CAreaMesh		*m_pAreaMesh;	// エリアメッシュポインタ
 	CEffectModel	*m_pEffectModel;	// エフェクトモデル 0x1F 0x21
@@ -395,7 +394,6 @@ protected:
 	IDirect3DVertexShader9		*m_hVertexShader;
 	D3DXMATRIX					m_mRootTransform;
 	CList						m_AreaMeshs,m_EffMeshs;
-	CList						m_Effects;				// エフェクトリスト
 	CList						m_KeyFrames;			// キーフレームリスト
 	CList						m_EffectModels;			// エフェクトモデルリスト
 	int							m_mArea;				// エリアファイル
@@ -404,6 +402,7 @@ protected:
 
 
 public:
+	CList						m_Effects;				// エフェクトリスト
 	CList						m_Textures;
 
 	CArea();
