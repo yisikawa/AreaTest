@@ -566,13 +566,22 @@ CKeyFrame::~CKeyFrame()
 	}
 }
 
+void CKeyFrame::outputValue(HWND listObj) {
+	char buf[256];
+
+	for (int i = 0; i < m_numKey; i++) {
+		sprintf(buf, "[%2d] Key (%5.5f) Value(%5.5f)",i, m_keys[i],m_values[i]);
+		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+	}
+}
+
 void CKeyFrame::GetKeyFrame(char *pBuf)
 {
 	char	*ptr;
 	int		num = 0;
 	float	key = 0.f, val = 0.f;
 
-	memcpy(m_type, pBuf, 4);
+	memcpy(m_type, pBuf, 4);m_type[4]='\0';
 	ptr = pBuf + 16;
 	while (key<1.0) {
 		key = *((float*)ptr); ptr += 4;
@@ -832,9 +841,15 @@ CEffect::~CEffect()
 
 void CEffect::InitData(void)
 {
-	m_p01.x = 0.f; m_p01.y = 0.f; m_p01.z = 0.f;
-	m_p02 = m_p03 = m_r06 = m_r09 = m_r0A = m_r0B = m_r0C = m_s0F = m_p01;
-	m_s10 = m_s11 = m_s12 = m_s13 = m_r1F = m_s1F = m_h1F = m_p01;
+	D3DXVECTOR3 tmp1 = { 0.f, 0.f, 0.f };
+	D3DXVECTOR3 tmp2 = { 1.f, 1.f, 1.f };
+
+	for (int i = 0; i < 128; i++){
+		param[i] = false;
+	}
+	D3DXMatrixIdentity(&m_mRootTransform);
+	m_uv = m_p01 = m_p02 = m_p03 = m_r06 = m_r09 = m_r0A = m_r0B = m_r0C = m_h1F = m_r1F = tmp1;
+	m_s0F = m_s10 = m_s11 = m_s12 = m_s13 =  m_s1F = tmp2;
 	m_name[0] = '\0'; m_target[0] = '\0';
 	m_no = m_1fdiv = 0;
 	m_ModelType = 0;
@@ -845,6 +860,8 @@ void CEffect::InitData(void)
 	m_kfrx = m_kfry = m_kfrz = NULL;
 	m_kfsx = m_kfsy = m_kfsz = NULL;
 	m_kfu = m_kfv = NULL;
+	m_pAreaMesh = NULL;
+	m_pEffectModel = NULL;
 }
 
 void CEffect::Set1F(int no)
@@ -882,11 +899,6 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 	D3DXMATRIX	AreaMatrix, TempMatrix;
 	int			num, dat1Adr, dat2Adr, dat3Adr, dat4Adr;
 
-	D3DXMatrixIdentity(&m_mRootTransform);
-	m_p01.x = m_p01.y = m_p01.z = 0.f;
-	m_r09.x = m_r09.y = m_r09.z = 0.f;
-	m_s0F.x = m_s0F.y = m_s0F.z = 1.f;
-	m_color.r = m_color.g = m_color.b = m_color.a = 1.f;
 	memcpy(m_name, pBuff, 4); m_name[4] = '\0';
 	pAdr = pBuff;
 	dat1Adr = *((int*)(pAdr + 0x80));
@@ -903,17 +915,17 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 		num = (int)*(pAdr + 1); num &= 0x0f;
 		if (type == 0) break;
 		switch (type) {
-		case 0x27:
-			m_uv.x = *((float*)(pAdr + 4));
-			pAdr += 4 * num;
-			break;
-		case 0x28:
-			m_uv.y = *((float*)(pAdr + 4));
-			pAdr += 4 * num;
-			break;
-		default:
-			pAdr += 4 * num;
-			break;
+			case 0x27:
+				m_uv.x = *((float*)(pAdr + 4));
+				pAdr += 4 * num;
+				break;
+			case 0x28:
+				m_uv.y = *((float*)(pAdr + 4));
+				pAdr += 4 * num;
+				break;
+			default:
+				pAdr += 4 * num;
+				break;
 		}
 	}
 	pAdr = pBuff + dat2Adr;
@@ -937,7 +949,8 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			D3DXMatrixMultiply(&m_mRootTransform, &m_mRootTransform, &pmat);
 			return;
 		case 0x01: // オフセット
-			memcpy(m_target, pAdr + 12, 4);
+			param[0x01] = true;
+			memcpy(m_target, pAdr + 12, 4);m_target[4]='\0';
 			m_kind1 = *((WORD*)(pAdr + 4));
 			m_kind2 = *((WORD*)(pAdr + 6));
 			m_p01.x = *((float*)(pAdr + 20));
@@ -953,74 +966,86 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			else
 				m_ModelType = 0xff;
 			m_lifeTime = *((WORD*)(pAdr + 34));
-			m_lifeTime = (DWORD)((float)m_lifeTime*1000.f / (float)LIFE_BASE);
+//			m_lifeTime = (DWORD)((float)m_lifeTime*1000.f / (float)LIFE_BASE);
 			pAdr += 4 * num;
 			break;
 		case 0x02:
+			param[0x02] = true;
 			m_p02.x = *((float*)(pAdr + 4));
 			m_p02.y = *((float*)(pAdr + 8));
 			m_p02.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
 		case 0x03:
+			param[0x03] = true;
 			m_p03.x = *((float*)(pAdr + 4));
 			m_p03.y = *((float*)(pAdr + 8));
 			m_p03.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
 		case 0x06:
+			param[0x06] = true;
 			m_r06.x = *((float*)(pAdr + 4));
 			m_r06.y = *((float*)(pAdr + 8));
 			m_r06.z = 0.f;
 			pAdr += 4 * num;
 			break;
 		case 0x08:
+			param[0x08] = true;
 			m_08dist = *((float*)(pAdr + 4));
 			pAdr += 4 * num;
 			break;
 		case 0x09://初期位置
+			param[0x09] = true;
 			m_r09.x = *((float*)(pAdr + 4));
 			m_r09.y = *((float*)(pAdr + 8));
 			m_r09.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
 		case 0x0a://回転
+			param[0x0a] = true;
 			m_r0A.x = *((float*)(pAdr + 4));
 			m_r0A.y = *((float*)(pAdr + 8));
 			m_r0A.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
 		case 0x0b:// 回転差分
+			param[0x0b] = true;
 			m_r0B.x = *((float*)(pAdr + 4));
 			m_r0B.y = *((float*)(pAdr + 8));
 			m_r0B.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
 		case 0x0c:// 回転差分　ゆらぎ？
+			param[0x0c] = true;
 			m_r0C.x = *((float*)(pAdr + 4));
 			m_r0C.y = *((float*)(pAdr + 8));
 			m_r0C.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
 		case 0x0f:// 初期スケール
+			param[0x0f] = true;
 			m_s0F.x = *((float*)(pAdr + 4));
 			m_s0F.y = *((float*)(pAdr + 8));
 			m_s0F.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
 		case 0x10:// スケール差分
+			param[0x10] = true;
 			m_s10.x = *((float*)(pAdr + 4));
 			m_s10.y = *((float*)(pAdr + 8));
 			m_s10.z = *((float*)(pAdr + 12));
 			pAdr += 4 * num;
 			break;
 		case 0x11://スケールの揺らぎ
+			param[0x11] = true;
 			m_s11.x = *((float*)(pAdr + 4));
 			m_s11.y = *((float*)(pAdr + 4));
 			m_s11.z = *((float*)(pAdr + 4));
 			pAdr += 4 * num;
 			break;
 		case 0x12:// スケール差分
+			param[0x12] = true;
 			Sflg = true;
 			m_s12.x = *((float*)(pAdr + 4));
 			m_s12.y = *((float*)(pAdr + 8));
@@ -1028,6 +1053,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			pAdr += 4 * num;
 			break;
 		case 0x13:// スケール差分
+			param[0x13] = true;
 			Sflg = true;
 			m_s13.x += *((float*)(pAdr + 4));
 			m_s13.y += *((float*)(pAdr + 8));
@@ -1035,6 +1061,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			pAdr += 4 * num;
 			break;
 		case 0x16:// 初期カラー
+			param[0x16] = true;
 			col = *((int*)(pAdr + 4));
 			m_color.r = (float)((col >> 0) & 0x00ff) / 255.f;
 			m_color.g = (float)((col >> 8) & 0x00ff) / 255.f;
@@ -1046,6 +1073,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			pAdr += 4 * num;
 			break;
 		case 0x1F:
+			param[0x1F] = true;
 			m_r1F.y = *((float*)(pAdr + 4));
 			m_r1F.x = *((float*)(pAdr + 8));
 			m_s1F.x = *((float*)(pAdr + 12));
@@ -1057,144 +1085,157 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			pAdr += 4 * num;
 			break;
 		case 0x21:
+			param[0x21] = true;
 			m_kfpx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfpx = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x22:
+			param[0x22] = true;
 			m_kfpy = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfpy = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x23:
+			param[0x23] = true;
 			m_kfpz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfpz = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x24:
+			param[0x24] = true;
 			m_kfrx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfrx = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x25:
+			param[0x25] = true;
 			m_kfry = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfry = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x26:
+			param[0x26] = true;
 			m_kfrz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfrz = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x27:
+			param[0x27] = true;
 			m_kfsx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfsx = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x28:
+			param[0x28] = true;
 			m_kfsy = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfsy = pKFrame;
 					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x29:
+			param[0x29] = true;
 			m_kfsz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfsz = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x2D:
+			param[0x2d] = true;
 			m_Al = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_Al = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x2E:
+			param[0x2e] = true;
 			m_kfu = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfu = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x2F:
+			param[0x2f] = true;
 			m_kfv = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_kfv = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
@@ -1204,36 +1245,39 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			pAdr += 4 * num;
 			break;
 		case 0x60:
+			param[0x60] = true;
 			m_Rd = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_Rd = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x61:
+			param[0x61] = true;
 			m_Gr = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_Gr = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
 			pAdr += 4 * num;
 			break;
 		case 0x62:
+			param[0x62] = true;
 			m_Bl = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
 				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
 					m_Bl = pKFrame;
-					pKFrame->SetDuration(m_lifeTime);
+					break;
 				}
 				pKFrame = (CKeyFrame*)pKFrame->Next;
 			}
@@ -1246,6 +1290,168 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 	}
 }
 
+
+void CEffect::outputProp(HWND listObj) {
+	char buf[256];
+
+	sprintf(buf, "[00] ID (%s) ﾀｰｹﾞｯﾄ(%s)", m_name, m_target);
+	SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+	for (int i = 0; i < 128; i++) {
+		if (param[i] == false) continue;
+		switch (i) {
+			case 0x00:
+				break;
+			case 0x01: // オフセット
+				sprintf(buf,"[%02x] mtype (%02x) kd1(%04x) kd2(%04x) LfT(%04x)", i, m_ModelType, m_kind1, m_kind2, m_lifeTime);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				sprintf(buf, "[%02x] ｵﾌｾｯﾄ (%5.5f,%5.5f,%5.5f)", i, m_p01.x, m_p01.y, m_p01.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x02:
+				sprintf(buf, "[%02x] ｵﾌｾｯﾄ2 (%5.5f,%5.5f,%5.5f)", i, m_p02.x, m_p02.y, m_p02.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x03:
+				sprintf(buf, "[%02x] ｵﾌｾｯﾄ3 (%5.5f,%5.5f,%5.5f)", i, m_p03.x, m_p03.y, m_p03.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x06:
+				sprintf(buf, "[%02x] 2D回転 (%5.5f,%5.5f,%5.5f)", i, m_r06.x, m_r06.y, m_r06.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x08:
+				sprintf(buf, "[%02x] dist (%5.5f)", i, m_08dist);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x09://初期位置
+				sprintf(buf, "[%02x] 回転 (%5.5f,%5.5f,%5.5f)", i, m_r09.x, m_r09.y, m_r09.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x0a://回転
+				sprintf(buf, "[%02x] 回転2 (%5.5f,%5.5f,%5.5f)", i, m_r0A.x, m_r0A.y, m_r0A.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x0b:// 回転差分
+				sprintf(buf, "[%02x] 回転3 (%5.5f,%5.5f,%5.5f)", i, m_r0B.x, m_r0B.y, m_r0B.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x0c:// 回転差分
+				sprintf(buf, "[%02x] 回転4 (%5.5f,%5.5f,%5.5f)", i, m_r0C.x, m_r0C.y, m_r0C.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x0f:// 初期スケール
+				sprintf(buf, "[%02x] ｽｹｰﾙ (%5.5f,%5.5f,%5.5f)", i, m_s0F.x, m_s0F.y, m_s0F.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x10:// スケール差分
+				sprintf(buf, "[%02x] ｽｹｰﾙ2 (%5.5f,%5.5f,%5.5f)", i, m_s10.x, m_s10.y, m_s10.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x11://スケールの揺らぎ
+				sprintf(buf, "[%02x] ｽｹｰﾙ3 (%5.5f,%5.5f,%5.5f)", i, m_s11.x, m_s11.y, m_s11.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x12:// スケール差分
+				sprintf(buf, "[%02x] ｽｹｰﾙ4 (%5.5f,%5.5f,%5.5f)", i, m_s12.x, m_s12.y, m_s12.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x13:// スケール差分
+				sprintf(buf, "[%02x] ｽｹｰﾙ5 (%5.5f,%5.5f,%5.5f)", i, m_s13.x, m_s13.y, m_s13.z);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x16:// 初期カラー
+				sprintf(buf, "[%02x] ｶﾗｰ (%5.5f,%5.5f,%5.5f,%5.5f)", i, m_color.r, m_color.g, m_color.b, m_color.a);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x1E:
+				break;
+			case 0x1F:
+				sprintf(buf, "[%02x] r (%5.5f,%5.5f) s(%5.5f,%5.5f,%5.5f) h(%5.5f,%5.5f) div %d", i, m_r1F.x, m_r1F.y,
+					m_s1F.x, m_s1F.y, m_s1F.z, m_h1F.x, m_h1F.y, m_1fdiv);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x21:
+				if (m_kfpx == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) px", i, m_kfpx->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x22:
+				if (m_kfpy == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) py", i, m_kfpy->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x23:
+				if (m_kfpz == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) pz", i, m_kfpz->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x24:
+				if (m_kfrx == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) rx", i, m_kfrx->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x25:
+				if (m_kfry == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) ry", i, m_kfry->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x26:
+				if (m_kfrz == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) rz", i, m_kfrz->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x27:
+				if (m_kfsx == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sx", i, m_kfsx->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x28:
+				if (m_kfsy == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sy", i, m_kfsy->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x29:
+				if (m_kfsz == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sz", i, m_kfsz->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x2D:
+				if (m_Al == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) alph", i, m_Al->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x2E:
+				if (m_kfu == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) u", i, m_kfu->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x2F:
+				if (m_kfv == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) v", i, m_kfv->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x30:
+				break;
+			case 0x60:
+				if (m_Rd == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Rd", i, m_Rd->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x61:
+				if (m_Gr == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Gr", i, m_Gr->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			case 0x62:
+				if (m_Bl == NULL) break;
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Bl", i, m_Bl->m_type);
+				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				break;
+			default:
+				break;
+		}
+	}
+}
 
 //		コンストラクタ
 CAreaMesh::CAreaMesh()
@@ -1787,7 +1993,7 @@ HRESULT CArea::LoadEffectModelFromFile(char *FileName)
 		pos += next;
 	}
 	// 終了
-	delete pdat;
+	SAFE_DELETES(pdat);
 	return hr;
 }
 
@@ -1864,7 +2070,7 @@ HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
 		pos += next;
 	}
 	// 終了
-	delete pdat;
+	SAFE_DELETES(pdat);
 	return hr;
 }
 

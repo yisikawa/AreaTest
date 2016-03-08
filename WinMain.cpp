@@ -366,11 +366,12 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 { 
 	FILE			*fd;
 	D3DXVECTOR3		Pos,Post,DPos,Dview;
-	int				i,ComboNo;
+	int				i,tType,ComboNo;
 	char			ListName[256],ComboString[256];
 	int				index,w1,w2,w3;
-	char			ww[512];
+	char			tName[6],tClass[6],ww[512];
 	CEffect			*pEffect;
+	CKeyFrame		*pKeyframe;
 
 	switch( in_Message ) {
         case WM_INITDIALOG:
@@ -414,12 +415,49 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 				case IDOK:
 					ShowWindow(in_hWnd,SW_HIDE);
 					break;
+			case IDC_LIST1: // ·°ÌÚ°Ñ
+				if (HIWORD(in_wParam) == LBN_SELCHANGE) {
+					while (SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_GETCOUNT, 0, 0) != 0) {
+						SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_DELETESTRING, 0, 0);
+					}
+					index = SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETCURSEL, (WORD)0, 0L);
+					SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETTEXT, (WORD)index, (LONG)ww);
+					sscanf(ww, "[%02x] ·°ÌÚ°Ñ (%s)", &tType,tName);
+					switch (tType){
+						case 0x21:
+						case 0x22:
+						case 0x23:
+						case 0x24:
+						case 0x25:
+						case 0x26:
+						case 0x27:
+						case 0x28:
+						case 0x29:
+						case 0x2d:
+						case 0x2e:
+						case 0x2f:
+						case 0x60:
+						case 0x61:
+						case 0x62:
+							pKeyframe = (CKeyFrame*)g_mArea.m_KeyFrames.Top();
+							while (pKeyframe) {
+								if (!memcmp(tName, pKeyframe->m_type,4)) {
+									pKeyframe->outputValue(GetDlgItem(in_hWnd, IDC_LIST2));
+									break;
+								}
+								pKeyframe = (CKeyFrame*)pKeyframe->Next;
+							}
+							SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_SETCURSEL, (WPARAM)0, 0L);
+							break;
+					}
+				}
+				break;
 				case IDC_COMBO1:
 					if( HIWORD(in_wParam) == CBN_SELCHANGE ) {
 						//	ƒGƒŠƒA‚ÌÝ’è
 						ComboNo = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_GETCURSEL, 0L, 0L);
 						sscanf(ListArea[ComboNo],"%d-%d-%d,%f,%f,%f,%s",&w1,&w2,&w3,
-							&g_mEntry.x,&g_mEntry.y,&g_mEntry.z,&ww);
+							&g_mEntry.x,&g_mEntry.y,&g_mEntry.z,ww);
 						g_mArea.SetArea( ConvertStr2Dno2((char*)ListArea[ComboNo]) );
 						if( !g_mArea.LoadMAP() ) return -1;
 						g_mAt.x = g_mEntry.x;g_mAt.y = g_mEntry.y;g_mAt.z = g_mEntry.z;
@@ -454,6 +492,22 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 							pEffect = (CEffect*)pEffect->Next;
 						}
 						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)0, 0L);
+						while (SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETCOUNT, 0, 0) != 0) {
+							SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_DELETESTRING, 0, 0);
+						}
+						index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, (WORD)0, 0L);
+						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETLBTEXT, (WORD)index, (LONG)ComboString);
+						sscanf(ComboString, "ID[%4s] class[%4s]", tName, tClass);
+						pEffect = (CEffect*)g_mArea.m_Effects.Top();
+						while (pEffect) {
+							if (!memcmp(tName, pEffect->m_name,4)&&
+								!memcmp(tClass, pEffect->m_class,4) ) {
+								pEffect->outputProp(GetDlgItem(in_hWnd, IDC_LIST1));
+								break;
+							}
+							pEffect = (CEffect*)pEffect->Next;
+						}
+						SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), CB_SETCURSEL, (WPARAM)0, 0L);
 					}
 					break;
 				case IDC_COMBO2:
@@ -484,6 +538,25 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 					break;
 				case IDC_COMBO4:
 					if( HIWORD(in_wParam) == CBN_SELCHANGE ) {
+						while (SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_GETCOUNT, 0, 0) != 0) {
+							SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_DELETESTRING, 0, 0);
+						}
+						while (SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETCOUNT, 0, 0) != 0) {
+							SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_DELETESTRING, 0, 0);
+						}
+						index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, (WORD)0, 0L);
+						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETLBTEXT, (WORD)index, (LONG)ComboString);
+						sscanf(ComboString, "ID[%4s] class[%4s]", tName, tClass);
+						pEffect = (CEffect*)g_mArea.m_Effects.Top();
+						while (pEffect) {
+							if (!memcmp(tName, pEffect->m_name,4)&&
+								!memcmp(tClass, pEffect->m_class,4) ) {
+								pEffect->outputProp(GetDlgItem(in_hWnd, IDC_LIST1));
+								break;
+							}
+							pEffect = (CEffect*)pEffect->Next;
+						}
+						SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), CB_SETCURSEL, (WPARAM)0, 0L);
 					}
 					break;
 				case IDC_COMBO5:

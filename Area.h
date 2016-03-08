@@ -250,11 +250,11 @@ private:
 	DWORD	m_startTime;	// アニメーションの開始時刻
 	DWORD	m_duration;		// アニメーションの長さ
 public:
-	char			m_type[4];
+	char			m_type[6];
 	CKeyFrame();	// デフォルトコンストラクタ
 	~CKeyFrame();	// デストラクタ
 public:
-
+	void outputValue(HWND listObj);
 	void GetKeyFrame(char *pBuf);	// キーフレームの取得
 	void CreateKey(int numKey);	// キーの生成
 	void SetKeyValue(int index, float key, float value);	// キーとキーに対応する値の設定
@@ -295,6 +295,7 @@ CKeyFrame, *LPCKeyFrame;
 typedef class CEffect : public CListBase
 {
 public:
+	bool			param[128];
 	int				m_bPos;			// 所属　01:腰,11:腰,21:頭上手,31:首,41:前方,51,61:頭上,71:胸,81:右足,91:左足,a1:右手,b1:左手
 	// ボーン番号?
 	D3DXMATRIX		m_mRootTransform;
@@ -305,7 +306,7 @@ public:
 	int				m_subID;		// ターゲット処理方法
 	char			m_class[6];   // エフェクトタイプ effe,fefs,ligh等
 	char			m_name[6],		// エフェクトID
-		m_target[4];	//
+		m_target[6];	//
 	CAreaMesh		*m_pAreaMesh;	// エリアメッシュポインタ
 	CEffectModel	*m_pEffectModel;	// エフェクトモデル 0x1F 0x21
 	DWORD			m_lifeTime;		// 存続時間
@@ -352,6 +353,7 @@ public:
 	virtual	void	GetEffectMatrix(char *pBuf, CKeyFrame *pKeyFrame);
 	virtual void	InitData(void);
 	virtual void	Set1F(int no);
+	virtual void	outputProp(HWND listObj);
 }
 CEffect, *LPCEffect;
 
@@ -394,7 +396,6 @@ protected:
 	IDirect3DVertexShader9		*m_hVertexShader;
 	D3DXMATRIX					m_mRootTransform;
 	CList						m_AreaMeshs,m_EffMeshs;
-	CList						m_KeyFrames;			// キーフレームリスト
 	CList						m_EffectModels;			// エフェクトモデルリスト
 	int							m_mArea;				// エリアファイル
 	int							m_nObj;					// MMB個数　未使用
@@ -402,6 +403,7 @@ protected:
 
 
 public:
+	CList						m_KeyFrames;			// キーフレームリスト
 	CList						m_Effects;				// エフェクトリスト
 	CList						m_Textures;
 
