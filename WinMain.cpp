@@ -549,6 +549,13 @@ char szFPath[256], szFName[256], strmsg[256];
 		case WM_DESTROY:
 			PostQuitMessage( 0 );
 			break;
+		case WM_MOUSEWHEEL:
+			if (wParam == 0x00780000) {
+				MoveAt();
+			} else if (wParam == 0xff880000) {
+				BackAt();
+			}
+			break;
 		case WM_MOUSEMOVE:
 			x2 = LOWORD(lParam);
 			y2 = HIWORD(lParam);
