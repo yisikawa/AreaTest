@@ -1294,7 +1294,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 void CEffect::outputProp(HWND listObj) {
 	char buf[256];
 
-	sprintf(buf, "[00] ID (%s) À°¹Þ¯Ä(%s)", m_name, m_target);
+	sprintf(buf, "[00] ID (%s) À°¹Þ¯Ä(%s) U(%5.5f) V(%5.5f)", m_name, m_target,m_uv.x,m_uv.y);
 	SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 	for (int i = 0; i < 128; i++) {
 		if (param[i] == false) continue;
@@ -1360,7 +1360,8 @@ void CEffect::outputProp(HWND listObj) {
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x16:// ‰ŠúƒJƒ‰[
-				sprintf(buf, "[%02x] ¶×° (%5.5f,%5.5f,%5.5f,%5.5f)", i, m_color.r, m_color.g, m_color.b, m_color.a);
+				sprintf(buf, "[%02x] ¶×° ( %3d ,%3d ,%3d ,%3d )", i, 
+					(int)(m_color.r*255.f),(int)(m_color.g*255.f),(int)(m_color.b*255.f), (int)(m_color.a*255.f));
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x1E:

@@ -497,11 +497,13 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 						}
 						index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, (WORD)0, 0L);
 						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETLBTEXT, (WORD)index, (LONG)ComboString);
-						sscanf(ComboString, "ID[%4s] class[%4s]", tName, tClass);
+						sscanf(ComboString, "ID[%c%c%c%c] class[%c%c%c%c]", 
+							&tName[0],&tName[1],&tName[2],&tName[3],
+							&tClass[0],&tClass[1],&tClass[2],&tClass[3]);
 						pEffect = (CEffect*)g_mArea.m_Effects.Top();
 						while (pEffect) {
-							if (!memcmp(tName, pEffect->m_name,4)&&
-								!memcmp(tClass, pEffect->m_class,4) ) {
+							if (!memcmp(tName, pEffect->m_name,strlen(pEffect->m_name))&&
+								!memcmp(tClass, pEffect->m_class,strlen(pEffect->m_class)) ) {
 								pEffect->outputProp(GetDlgItem(in_hWnd, IDC_LIST1));
 								break;
 							}
@@ -546,11 +548,13 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 						}
 						index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, (WORD)0, 0L);
 						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETLBTEXT, (WORD)index, (LONG)ComboString);
-						sscanf(ComboString, "ID[%4s] class[%4s]", tName, tClass);
+						sscanf(ComboString, "ID[%c%c%c%c] class[%c%c%c%c]", 
+							&tName[0],&tName[1],&tName[2],&tName[3],
+							&tClass[0],&tClass[1],&tClass[2],&tClass[3]);
 						pEffect = (CEffect*)g_mArea.m_Effects.Top();
 						while (pEffect) {
-							if (!memcmp(tName, pEffect->m_name,4)&&
-								!memcmp(tClass, pEffect->m_class,4) ) {
+							if (!memcmp(tName, pEffect->m_name,strlen(pEffect->m_name))&&
+								!memcmp(tClass, pEffect->m_class,strlen(pEffect->m_class)) ) {
 								pEffect->outputProp(GetDlgItem(in_hWnd, IDC_LIST1));
 								break;
 							}
