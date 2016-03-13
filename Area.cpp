@@ -1089,7 +1089,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfpx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfpx = pKFrame;
 					break;
 				}
@@ -1102,7 +1102,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfpy = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfpy = pKFrame;
 					break;
 				}
@@ -1115,7 +1115,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfpz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfpz = pKFrame;
 					break;
 				}
@@ -1128,7 +1128,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfrx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfrx = pKFrame;
 					break;
 				}
@@ -1141,7 +1141,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfry = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfry = pKFrame;
 					break;
 				}
@@ -1154,7 +1154,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfrz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfrz = pKFrame;
 					break;
 				}
@@ -1167,7 +1167,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfsx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfsx = pKFrame;
 					break;
 				}
@@ -1180,7 +1180,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfsy = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfsy = pKFrame;
 					pKFrame->SetDuration(m_lifeTime);
 					break;
@@ -1194,7 +1194,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfsz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfsz = pKFrame;
 					break;
 				}
@@ -1207,7 +1207,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_Al = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_Al = pKFrame;
 					break;
 				}
@@ -1220,7 +1220,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfu = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfu = pKFrame;
 					break;
 				}
@@ -1233,7 +1233,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfv = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_kfv = pKFrame;
 					break;
 				}
@@ -1249,7 +1249,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_Rd = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_Rd = pKFrame;
 					break;
 				}
@@ -1262,7 +1262,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_Gr = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_Gr = pKFrame;
 					break;
 				}
@@ -1275,7 +1275,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_Bl = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, 4)) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
 					m_Bl = pKFrame;
 					break;
 				}

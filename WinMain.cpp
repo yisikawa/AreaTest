@@ -422,7 +422,7 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 					}
 					index = SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETCURSEL, (WORD)0, 0L);
 					SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETTEXT, (WORD)index, (LONG)ww);
-					sscanf(ww, "[%02x] ·°ÌÚ°Ñ (%s)", &tType,tName);
+					sscanf(ww, "[%02x] ·°ÌÚ°Ñ (%4s)", &tType,tName);
 					switch (tType){
 						case 0x21:
 						case 0x22:
@@ -441,7 +441,7 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 						case 0x62:
 							pKeyframe = (CKeyFrame*)g_mArea.m_KeyFrames.Top();
 							while (pKeyframe) {
-								if (!memcmp(tName, pKeyframe->m_type,4)) {
+								if (!memcmp(tName, pKeyframe->m_type,strlen(tName)) ) {
 									pKeyframe->outputValue(GetDlgItem(in_hWnd, IDC_LIST2));
 									break;
 								}
