@@ -620,8 +620,8 @@ void CKeyFrame::CreateKey(int numKey)
 	}
 
 	// êVÇµÇ¢îzóÒÇÃê∂ê¨
-	m_keys = new float[m_numKey];
-	m_values = new float[m_numKey];
+	m_keys = new float[m_numKey]();
+	m_values = new float[m_numKey]();
 
 }
 
@@ -1632,7 +1632,7 @@ HRESULT CAreaMesh::LoadAreaMesh( char *pFile, CArea *pArea, unsigned long FVF )
 				High.z = High.z<pVertex[j].v.z?pVertex[j].v.z:High.z;
 			}
 			if( aFlag==0x5f ) tStream.SetStencilFlag(true);
-			pIdx = new WORD[nIndex];
+			pIdx = new WORD[nIndex]();
 			memcpy((char*)pIdx,(Pos+16+4+nVertex*36+4),sizeof(WORD)*nIndex);
 			for( int j=0 ; j<nIndex ; j++ ) {
 				pIdx[j] += NumVertices;
@@ -1748,7 +1748,7 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 	HANDLE hFile = CreateFile(FileName,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
 	if( hFile!=INVALID_HANDLE_VALUE ){
 		dwSize = GetFileSize(hFile,NULL);
-	    pdat = new char[dwSize];
+	    pdat = new char[dwSize]();
 	    ReadFile(hFile,pdat,dwSize,&cnt,NULL);
 	    CloseHandle(hFile);
 		hr = 0;
@@ -1848,7 +1848,7 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
 	if (hFile != INVALID_HANDLE_VALUE){
 		dwSize = GetFileSize(hFile, NULL);
-		pdat = new char[dwSize];
+		pdat = new char[dwSize]();
 		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
 		CloseHandle(hFile);
 		hr = 0;
@@ -1956,7 +1956,7 @@ HRESULT CArea::LoadEffectModelFromFile(char *FileName)
 	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
 	if (hFile != INVALID_HANDLE_VALUE){
 		dwSize = GetFileSize(hFile, NULL);
-		pdat = new char[dwSize];
+		pdat = new char[dwSize]();
 		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
 		CloseHandle(hFile);
 		hr = 0;
@@ -2025,7 +2025,7 @@ HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
 	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
 	if (hFile != INVALID_HANDLE_VALUE){
 		dwSize = GetFileSize(hFile, NULL);
-		pdat = new char[dwSize];
+		pdat = new char[dwSize]();
 		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
 		CloseHandle(hFile);
 		hr = 0;
@@ -2203,7 +2203,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 	HANDLE hFile = CreateFile(FileName,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
 	if( hFile!=INVALID_HANDLE_VALUE ){
 		mFileSize = GetFileSize(hFile,NULL);
-	    pFileBuf = new char[mFileSize];
+	    pFileBuf = new char[mFileSize]();
 	    hr = ReadFile(hFile,pFileBuf,mFileSize,&cnt,NULL);
 	    CloseHandle(hFile);
 		hr = 0;
@@ -2222,14 +2222,14 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 			DecodeMZB((BYTE*)&pFileBuf[pos+16]);
 			if( mzbcnt==0 ) {
 				m_nObj = (*(int*)(pFileBuf+pos+4+16) )&0xffffff;
-				m_pObjInfo = new OBJINFO[ m_nObj ];
+				m_pObjInfo = new OBJINFO[ m_nObj ]();
 				pTobj = (TEMPOBJINFO*)(pFileBuf+pos+32+16);
 				for( i=0 ; i<m_nObj ; i++,pTobj++ ) {
 					memcpy((char*)&m_pObjInfo[i],(char*)pTobj,sizeof(TEMPOBJINFO));
 				}
 			} else {
 				int nObj = (*(int*)(pFileBuf+pos+4+16) )&0xffffff;
-				OBJINFO *pObjInfo = new OBJINFO[ m_nObj + nObj];
+				OBJINFO *pObjInfo = new OBJINFO[ m_nObj + nObj]();
 				pTobj = (TEMPOBJINFO*)(pFileBuf+pos+32+16);
 				memcpy((char*)pObjInfo,(char*)m_pObjInfo,sizeof(OBJINFO)*m_nObj);
 				for( i=0 ; i<nObj ; i++,pTobj++ ) {
