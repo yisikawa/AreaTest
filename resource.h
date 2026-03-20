@@ -168,8 +168,8 @@
 #define ID_MNU_MAT211                   40139
 #define ID_MNU_W640                     40140
 #define ID_MNU_W800                     40141
-#define ID_MNU_W1024                    40142
-#define ID_MNU_W1280                    40143
+#define ID_MNU_W1280                    40142
+#define ID_MNU_W1920                    40143
 #define ID_MNU_W1600                    40144
 #define ID_MNU_OASPD                    40145
 #define ID_MNU_W320                     40146

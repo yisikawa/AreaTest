@@ -723,23 +723,23 @@ char szFPath[256], szFName[256], strmsg[256];
 					window_w,window_h,true);
 				g_mScreenWidth = 800; g_mScreenHeight = 600;
 			}
-			if( LOWORD(wParam) == ID_MNU_W1024 ) {
-				long window_w = 1024 + GetSystemMetrics(SM_CXEDGE) + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
-				long window_h = 768 + GetSystemMetrics(SM_CYEDGE) + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
-				MoveWindow(hWnd,
-					GetSystemMetrics(SM_CXSCREEN)/2 - window_w/2,
-					GetSystemMetrics(SM_CYSCREEN)/2 - window_h/2,
-					window_w,window_h,true);
-				g_mScreenWidth = 1024; g_mScreenHeight = 768;
-			}
-			if( LOWORD(wParam) == ID_MNU_W1280 ) {
+			if( LOWORD(wParam) == ID_MNU_W1280) {
 				long window_w = 1280 + GetSystemMetrics(SM_CXEDGE) + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
-				long window_h = 1024 + GetSystemMetrics(SM_CYEDGE) + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
+				long window_h = 720 + GetSystemMetrics(SM_CYEDGE) + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
 				MoveWindow(hWnd,
 					GetSystemMetrics(SM_CXSCREEN)/2 - window_w/2,
 					GetSystemMetrics(SM_CYSCREEN)/2 - window_h/2,
 					window_w,window_h,true);
-				g_mScreenWidth = 1280; g_mScreenHeight = 1024;
+				g_mScreenWidth = 1280; g_mScreenHeight = 720;
+			}
+			if( LOWORD(wParam) == ID_MNU_W1920 ) {
+				long window_w = 1920 + GetSystemMetrics(SM_CXEDGE) + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
+				long window_h = 1080 + GetSystemMetrics(SM_CYEDGE) + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
+				MoveWindow(hWnd,
+					GetSystemMetrics(SM_CXSCREEN)/2 - window_w/2,
+					GetSystemMetrics(SM_CYSCREEN)/2 - window_h/2,
+					window_w,window_h,true);
+				g_mScreenWidth = 1920; g_mScreenHeight = 1080;
 			}
 			if( LOWORD(wParam) == ID_MNU_W1600 ) {
 				long window_w = 1600 + GetSystemMetrics(SM_CXEDGE) + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);

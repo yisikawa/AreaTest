@@ -1736,16 +1736,36 @@ void	CArea::InitData(void)
 	m_nObj			= 0;
 }
 
+bool convert_tex_path(char* src) {
+	// 検索の目印となる文字列（ゲームのデータフォルダ名）
+	static const char* search_term = "ROM\\";
+	// 新しいベースディレクトリ
+	static const char* new_base = "Z:\\DataFBX\\FFXI\\";
+	// "ROM\" が出現する位置を検索
+	const char* relative_path = strstr(src, search_term);
+	if (relative_path != NULL) {
+		// 新しいベースパスと相対パスを結合
+		// snprintfを使うことでバッファオーバーフローを防ぎつつ結合可能です
+		snprintf(src, strlen(src), "%s%s", new_base, relative_path);
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+
 //		テクスチャの読み込み
 HRESULT CArea::LoadTextureFromFile( char *FileName  )
 {
 	HRESULT hr							= S_OK;
 
 	// ファイルをメモリに取り込む
-	char *pdat=NULL;
+	char *pdat=NULL, path[512];
 	int dwSize;
 	unsigned long	cnt;
-	HANDLE hFile = CreateFile(FileName,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
+	strcpy(path, FileName);
+	convert_tex_path(path);
+	HANDLE hFile = CreateFile(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
 	if( hFile!=INVALID_HANDLE_VALUE ){
 		dwSize = GetFileSize(hFile,NULL);
 	    pdat = new char[dwSize]();
