@@ -1,0 +1,22 @@
+AreaTest.sdf
+Release/
+x64/
+_UpgradeReport_Files/
+UpgradeLog.XML
+Debug/
+.gitignore
+AreaTest.vcxproj.filters
+Areabkup0517.cpp
+hlsl.fx
+icon1.ico
+AreaTest.opensdf
+AreaTest_project_suppressions.cfg
+List/Area.lst.bkup151108
+List/Areatest151108.lst
+
+# Auto-added untracked files
+.vs/
+*.suo
+*.vcxproj.user
+Packages.dgml
+resource.aps
