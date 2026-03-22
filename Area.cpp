@@ -548,7 +548,7 @@ HRESULT CEffectModel::LoadEffectModel2(char *pFile)
 // デフォルトコンストラクタ
 //-------------------------------------------------------------
 CKeyFrame::CKeyFrame()
-	: m_numKey(0), m_keys(0), m_values(0), m_isLoop(TRUE), m_startTime(0), m_duration(0)
+	: m_isLoop(TRUE), m_startTime(0), m_duration(0)
 {
 }
 
@@ -557,20 +557,13 @@ CKeyFrame::CKeyFrame()
 //---------------------------------------------------------
 CKeyFrame::~CKeyFrame()
 {
-	if (m_keys != 0) {
-		delete[] m_keys;
-	}
-
-	if (m_values != 0) {
-		delete[] m_values;
-	}
 }
 
 void CKeyFrame::outputValue(HWND listObj) {
 	char buf[256];
 
-	for (int i = 0; i < m_numKey; i++) {
-		sprintf(buf, "[%2d] Key (%5.5f) Value(%5.5f)",i, m_keys[i],m_values[i]);
+	for (size_t i = 0; i < m_keys.size(); i++) {
+		sprintf(buf, "[%2d] Key (%5.5f) Value(%5.5f)", (int)i, m_keys[i], m_values[i]);
 		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 	}
 }
@@ -606,23 +599,9 @@ void CKeyFrame::GetKeyFrame(char *pBuf)
 //---------------------------------------------------------
 void CKeyFrame::CreateKey(int numKey)
 {
-
-	// キーフレーム数の設定
-	m_numKey = numKey;
-
-	// 古いデータを削除
-	if (m_keys != 0) {
-		delete[] m_keys;
-	}
-
-	if (m_values != 0) {
-		delete[] m_values;
-	}
-
-	// 新しい配列の生成
-	m_keys = new float[m_numKey]();
-	m_values = new float[m_numKey]();
-
+	// 新しい配列のサイズを変更
+	m_keys.assign(numKey, 0.0f);
+	m_values.assign(numKey, 0.0f);
 }
 
 //---------------------------------------------------------
@@ -636,13 +615,11 @@ void CKeyFrame::CreateKey(int numKey)
 //---------------------------------------------------------
 void CKeyFrame::SetKeyValue(int index, float key, float value)
 {
-	//インデックスが0より小さい、または現在のキーの数以上なら何もしない
-	if ((index < 0) || (index >= m_numKey)) {
-		return;
+	//インデックスが範囲内なら設定
+	if (index >= 0 && index < (int)m_keys.size()) {
+		m_keys[index] = key;
+		m_values[index] = value;
 	}
-
-	m_keys[index] = key;
-	m_values[index] = value;
 }
 
 //---------------------------------------------------------
@@ -695,7 +672,7 @@ BOOL CKeyFrame::GetValue(DWORD time, float* pValue, BOOL* pIsEnd)
 		return FALSE;
 	}
 
-	if (m_numKey <= 0) {
+	if (m_keys.empty()) {
 		return FALSE;
 	}
 
@@ -713,7 +690,7 @@ BOOL CKeyFrame::GetValue(DWORD time, float* pValue, BOOL* pIsEnd)
 		}
 		else if (time > endTime) {
 			// 時刻が終了時刻よりも大きければ最後の値を返す
-			*pValue = m_values[m_numKey - 1];
+			*pValue = m_values.back();
 			*pIsEnd = TRUE;
 			return TRUE;
 		}
@@ -736,10 +713,10 @@ BOOL CKeyFrame::GetValue(DWORD time, float* pValue, BOOL* pIsEnd)
 
 	// 値の計算
 	if (beginIndex < 0) {	// アニメーション開始前
-		*pValue = m_values[0];	// 最初のキーフレームの値を返す
+		*pValue = m_values.front();	// 最初のキーフレームの値を返す
 	}
-	else if (beginIndex >= m_numKey - 1) {	// アニメーション終了後
-		*pValue = m_values[m_numKey - 1];	// 最後のキーフレームの値を返す
+	else if (beginIndex >= (int)m_keys.size() - 1) {	// アニメーション終了後
+		*pValue = m_values.back();	// 最後のキーフレームの値を返す
 	}
 	else {
 		// 傾き（1.0あたりの増減量）を求める
@@ -807,15 +784,15 @@ float CKeyFrame::GetFraction(DWORD time)
 //---------------------------------------------------------
 int CKeyFrame::GetBeginIndex(float fraction)
 {
-	if (fraction < m_keys[0])
+	if (m_keys.empty() || fraction < m_keys[0])
 		return -1;
 
 	// 引数に指定された割合とキーフレームの割合を比較する
 	int index = 0;
-	for (int i = 0; i < m_numKey; i++) {
+	for (size_t i = 0; i < m_keys.size(); i++) {
 		// キーフレームより大きくなったら発見
 		if (m_keys[i] <= fraction) {
-			index = i;
+			index = (int)i;
 		}
 		else {
 			break;
@@ -2002,7 +1979,7 @@ HRESULT CArea::LoadEffectModelFromFile(char *FileName)
 			pTexture = (CTexture*)m_Textures.Top();
 			int texno = 0;
 			while (pTexture != NULL) {
-				if (!memcmp(pEffectModel->m_Name, pTexture->m_TexName, 16)){
+				if (!memcmp(pEffectModel->m_Name, pTexture->m_TexName.c_str(), 16)){
 					pEffectModel->m_texNo = texno;
 					pEffectModel->m_pTexture = pTexture;
 					break;
@@ -2078,7 +2055,7 @@ HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
 				pTexture = (CTexture*)m_Textures.Top();
 				int texno = 0;
 				while (pTexture != NULL) {
-					if (!memcmp(pEffectModel->m_Name, pTexture->m_TexName, 16)){
+					if (!memcmp(pEffectModel->m_Name, pTexture->m_TexName.c_str(), 16)){
 						pEffectModel->m_texNo = texno;
 						pEffectModel->m_pTexture = pTexture;
 						break;
@@ -2932,7 +2909,7 @@ bool CArea::saveMQO3(char *FPath, char *FName){
 	char	texName[256];
 	while (pTexture != NULL) {
 		if (pTexture == NULL) continue;
-		strcpy(texName, pTexture->m_TexName); Trim(texName);
+		strcpy(texName, pTexture->m_TexName.c_str()); Trim(texName);
 		fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
 		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.bmp\")\n", texName);
 		sprintf(texpath, "%s%s.bmp", FPath, texName);

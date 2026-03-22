@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <string>
 #include <list>
+#include <vector>
+#include <algorithm>
 
 
 using namespace std;
@@ -162,11 +164,11 @@ protected:
 	IDirect3DTexture9	*m_pTexture;
 
 public:
-	char				m_TexName[18];
+	std::string			m_TexName;
 	CTexture();
 	virtual ~CTexture();
-	virtual void SetTexName( char *pTexName ) { strcpy(m_TexName,pTexName); }
-	virtual char* GetTexName(void) { return m_TexName; }
+	virtual void		SetTexName(const char* name) { m_TexName = name; }
+	virtual const char*	GetTexName() { return m_TexName.c_str(); }
 	virtual void SetTexture( IDirect3DTexture9 *pTex );
 	virtual IDirect3DTexture9 *GetTexture( void );
 }
@@ -243,9 +245,8 @@ CEffectModel, *LPCEffectModel;
 typedef class CKeyFrame : public CListBase
 {
 private:
-	int		m_numKey;		// キーの数
-	float*	m_keys;			// キーを格納する配列へのポインタ
-	float*	m_values;		// キーに対応する値を格納する配列へのポインタ
+	std::vector<float> m_keys;		// キーを格納する配列
+	std::vector<float> m_values;	// キーに対応する値を格納する配列
 	BOOL	m_isLoop;		// アニメーションをループするかどうかのフラグ
 	DWORD	m_startTime;	// アニメーションの開始時刻
 	DWORD	m_duration;		// アニメーションの長さ
