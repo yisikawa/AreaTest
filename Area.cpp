@@ -413,10 +413,10 @@ HRESULT CEffectModel::LoadEffectModel(char *pFile)
 	m_ModelType = 0x1f;
 	m_ModelTotal = 0;
 	m_ModelNo = 0;
-	memcpy(m_type, pFile, 4);
+	m_type.assign(pFile, 4);
 	DAT1FH		*pcp = (DAT1FH *)(pFile + 16);
 	pVertex = (EFFECTVERTEX*)(pFile + 16 + sizeof(DAT1FH));
-	memcpy(m_Name, pcp->name, 16); m_Name[16] = '\0';
+	m_Name.assign(pcp->name, 16);
 	NumFaces = pcp->numFace & 0xff;
 	NumVertices = NumFaces * 3;
 	m_NumVertices = NumVertices;
@@ -483,10 +483,10 @@ HRESULT CEffectModel::LoadEffectModel2(char *pFile)
 
 	m_ModelType = 0x21;
 	m_ModelNo = 0;
-	memcpy(m_type, pFile, 4);
+	m_type.assign(pFile, 4);
 	DAT21H		*pcp = (DAT21H *)(pFile + 16);
 	//	pVertex		=	(EFFECT2VERTEX*)(pFile+16+sizeof(DAT21H));
-	memcpy(m_Name, pcp->name, 16); m_Name[16] = '\0';
+	m_Name.assign(pcp->name, 16);
 	NumFaces = (pcp->S2 & 0xff) * 2;
 	NumVertices = NumFaces * 3;
 	m_NumVertices = NumVertices;
@@ -574,7 +574,7 @@ void CKeyFrame::GetKeyFrame(char *pBuf)
 	int		num = 0;
 	float	key = 0.f, val = 0.f;
 
-	memcpy(m_type, pBuf, 4);m_type[4]='\0';
+	m_type.assign(pBuf, 4);
 	ptr = pBuf + 16;
 	while (key<1.0) {
 		key = *((float*)ptr); ptr += 4;
@@ -827,7 +827,7 @@ void CEffect::InitData(void)
 	D3DXMatrixIdentity(&m_mRootTransform);
 	m_uv = m_p01 = m_p02 = m_p03 = m_r06 = m_r09 = m_r0A = m_r0B = m_r0C = m_h1F = m_r1F = tmp1;
 	m_s0F = m_s10 = m_s11 = m_s12 = m_s13 =  m_s1F = tmp2;
-	m_name[0] = '\0'; m_target[0] = '\0';
+	m_name.clear(); m_target.clear();
 	m_no = m_1fdiv = 0;
 	m_ModelType = 0;
 	m_08dist = 0.f;
@@ -876,7 +876,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 	D3DXMATRIX	AreaMatrix, TempMatrix;
 	int			num, dat1Adr, dat2Adr, dat3Adr, dat4Adr;
 
-	memcpy(m_name, pBuff, 4); m_name[4] = '\0';
+	m_name.assign(pBuff, 4);
 	pAdr = pBuff;
 	dat1Adr = *((int*)(pAdr + 0x80));
 	dat2Adr = *((int*)(pAdr + 0x84));
@@ -927,7 +927,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			return;
 		case 0x01: // オフセット
 			param[0x01] = true;
-			memcpy(m_target, pAdr + 12, 4);m_target[4]='\0';
+			m_target.assign(pAdr + 12, 4);
 			m_kind1 = *((WORD*)(pAdr + 4));
 			m_kind2 = *((WORD*)(pAdr + 6));
 			m_p01.x = *((float*)(pAdr + 20));
@@ -1066,7 +1066,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfpx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfpx = pKFrame;
 					break;
 				}
@@ -1079,7 +1079,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfpy = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfpy = pKFrame;
 					break;
 				}
@@ -1092,7 +1092,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfpz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfpz = pKFrame;
 					break;
 				}
@@ -1105,7 +1105,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfrx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfrx = pKFrame;
 					break;
 				}
@@ -1118,7 +1118,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfry = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfry = pKFrame;
 					break;
 				}
@@ -1131,7 +1131,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfrz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfrz = pKFrame;
 					break;
 				}
@@ -1144,7 +1144,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfsx = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfsx = pKFrame;
 					break;
 				}
@@ -1157,7 +1157,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfsy = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfsy = pKFrame;
 					pKFrame->SetDuration(m_lifeTime);
 					break;
@@ -1171,7 +1171,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfsz = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfsz = pKFrame;
 					break;
 				}
@@ -1184,7 +1184,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_Al = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_Al = pKFrame;
 					break;
 				}
@@ -1197,7 +1197,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfu = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfu = pKFrame;
 					break;
 				}
@@ -1210,7 +1210,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_kfv = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_kfv = pKFrame;
 					break;
 				}
@@ -1226,7 +1226,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_Rd = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_Rd = pKFrame;
 					break;
 				}
@@ -1239,7 +1239,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_Gr = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_Gr = pKFrame;
 					break;
 				}
@@ -1252,7 +1252,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 			m_Bl = NULL;
 			pKFrame = pKeyFrame;
 			while (pKFrame) {
-				if (!memcmp(pAdr + 8, pKFrame->m_type, strlen(pKFrame->m_type))) {
+				if (!memcmp(pAdr + 8, pKFrame->m_type.c_str(), 4)) {
 					m_Bl = pKFrame;
 					break;
 				}
@@ -1271,7 +1271,7 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 void CEffect::outputProp(HWND listObj) {
 	char buf[256];
 
-	sprintf(buf, "[00] ID (%s) ﾀｰｹﾞｯﾄ(%s) U(%5.5f) V(%5.5f)", m_name, m_target,m_uv.x,m_uv.y);
+	sprintf(buf, "[00] ID (%s) ターゲット(%s) U(%5.5f) V(%5.5f)", m_name.c_str(), m_target.c_str(),m_uv.x,m_uv.y);
 	SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 	for (int i = 0; i < 128; i++) {
 		if (param[i] == false) continue;
@@ -1350,79 +1350,79 @@ void CEffect::outputProp(HWND listObj) {
 				break;
 			case 0x21:
 				if (m_kfpx == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) px", i, m_kfpx->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) px", i, m_kfpx->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x22:
 				if (m_kfpy == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) py", i, m_kfpy->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) py", i, m_kfpy->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x23:
 				if (m_kfpz == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) pz", i, m_kfpz->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) pz", i, m_kfpz->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x24:
 				if (m_kfrx == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) rx", i, m_kfrx->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) rx", i, m_kfrx->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x25:
 				if (m_kfry == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) ry", i, m_kfry->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) ry", i, m_kfry->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x26:
 				if (m_kfrz == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) rz", i, m_kfrz->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) rz", i, m_kfrz->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x27:
 				if (m_kfsx == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sx", i, m_kfsx->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sx", i, m_kfsx->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x28:
 				if (m_kfsy == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sy", i, m_kfsy->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sy", i, m_kfsy->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x29:
 				if (m_kfsz == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sz", i, m_kfsz->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sz", i, m_kfsz->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x2D:
 				if (m_Al == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) alph", i, m_Al->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) alph", i, m_Al->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x2E:
 				if (m_kfu == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) u", i, m_kfu->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) u", i, m_kfu->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x2F:
 				if (m_kfv == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) v", i, m_kfv->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) v", i, m_kfv->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x30:
 				break;
 			case 0x60:
 				if (m_Rd == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Rd", i, m_Rd->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Rd", i, m_Rd->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x61:
 				if (m_Gr == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Gr", i, m_Gr->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Gr", i, m_Gr->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			case 0x62:
 				if (m_Bl == NULL) break;
-				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Bl", i, m_Bl->m_type);
+				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Bl", i, m_Bl->m_type.c_str());
 				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
 				break;
 			default:
@@ -1483,7 +1483,7 @@ HRESULT CAreaMesh::LoadAreaMesh( char *pFile, CArea *pArea, unsigned long FVF )
 
 	// エリアデータの判定
 
-	memcpy(m_AreaType, pFile, 4);
+	m_AreaType.assign(pFile, 4);
 	aFlag = *pFile;bFlag = *(pFile+4);
 	pFile += 16;
 //	if( *(pFile+4)!=1 ) return -1;
@@ -1796,7 +1796,7 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 				if(hr==D3D_OK){
 					for( DWORD jy=0; jy<yy; jy++ ){
 						for( DWORD jx=0; jx<xx; jx++ ){
-							DWORD *pp  = (DWORD *)rc.pBits;
+							DWORD *pp   = (DWORD *)rc.pBits;
 							BYTE  *idx = (BYTE  *)(pdat+pos+33+0x28+0x400);
 							DWORD *pal = (DWORD *)(pdat+pos+33+0x28);
 							pp[(yy-jy-1)*xx+jx] = pal[idx[jy*xx+jx]];
@@ -1873,7 +1873,7 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		pos += next;
 	}
 	pos = 0;
-	char className[6]; className[0] = '\0';
+	std::string className;
 	while (pos<dwSize) {
 		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
 		if (next<16) break;
@@ -1881,14 +1881,14 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
 		switch (type) {
 		case 0x00:
-			className[0] = '\0';
+			className.clear();
 			break;
 		case 0x01:
-			memcpy(className, pdat + pos, 4); className[4] = '\0';
+			className.assign(pdat + pos, 4);
 			break;
 		case 0x05:
 			pEffect = new CEffect;
-			strcpy(pEffect->m_class, className);
+			pEffect->m_class = className;
 			pEffect->InitData();
 			pEffect->GetEffectMatrix(pdat + pos, (CKeyFrame*)m_KeyFrames.Top());
 			m_Effects.InsertTop(pEffect);
@@ -1901,7 +1901,7 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		pEffect->m_pAreaMesh = NULL;
 		CAreaMesh *pAreaMesh = (CAreaMesh *)m_EffMeshs.Top();
 		while (pAreaMesh) {
-			if (!memcmp(pEffect->m_target, pAreaMesh->m_AreaType, 4) 
+			if (!memcmp(pEffect->m_target.c_str(), pAreaMesh->m_AreaType.c_str(), 4) 
 	//			&& pEffect->m_ModelType == pEffectModel->m_ModelType
 			) {
 				pEffect->m_pAreaMesh = pAreaMesh;
@@ -1912,7 +1912,7 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		pEffect->m_pEffectModel = NULL;
 		CEffectModel *pEffectModel = (CEffectModel*)m_EffectModels.Top();
 		while (pEffectModel) {
-			if (!memcmp(pEffect->m_target, pEffectModel->m_type, 4) &&
+			if (!memcmp(pEffect->m_target.c_str(), pEffectModel->m_type.c_str(), 4) &&
 				pEffect->m_ModelType == pEffectModel->m_ModelType) {
 				pEffect->m_pEffectModel = pEffectModel;
 				break;
@@ -1979,7 +1979,7 @@ HRESULT CArea::LoadEffectModelFromFile(char *FileName)
 			pTexture = (CTexture*)m_Textures.Top();
 			int texno = 0;
 			while (pTexture != NULL) {
-				if (!memcmp(pEffectModel->m_Name, pTexture->m_TexName.c_str(), 16)){
+				if (!memcmp(pEffectModel->m_Name.c_str(), pTexture->m_TexName.c_str(), 16)){
 					pEffectModel->m_texNo = texno;
 					pEffectModel->m_pTexture = pTexture;
 					break;
@@ -2055,7 +2055,7 @@ HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
 				pTexture = (CTexture*)m_Textures.Top();
 				int texno = 0;
 				while (pTexture != NULL) {
-					if (!memcmp(pEffectModel->m_Name, pTexture->m_TexName.c_str(), 16)){
+					if (!memcmp(pEffectModel->m_Name.c_str(), pTexture->m_TexName.c_str(), 16)){
 						pEffectModel->m_texNo = texno;
 						pEffectModel->m_pTexture = pTexture;
 						break;
@@ -2186,7 +2186,7 @@ bool CArea::CreateVertexShader( void )
 //		エリアメッシュの読み込み
 HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 {
-	char			MeshName[20];
+	std::string		MeshName;
 	D3DXMATRIX		AreaMatrix,TempMatrix;
 	TEMPOBJINFO		*pTobj;
 	CAreaMesh		*pAreaMesh;
@@ -2251,14 +2251,14 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 		switch( type ) {
 		case 0x2e : // AreaMesh
 			DecodeMMB((BYTE*)&pFileBuf[pos+16]);
-			memcpy(MeshName,pFileBuf+pos+32,16);
+			MeshName.assign(pFileBuf+pos+32, 16);
 			for( i=0 ; i<m_nObj ; i++ ) {
-				if( !memcmp(MeshName,m_pObjInfo[i].mObj.id,16) ) break;
+				if( !memcmp(MeshName.c_str(),m_pObjInfo[i].mObj.id,16) ) break;
 			}
 			if (i >= m_nObj) {
 				pAreaMesh = new CAreaMesh;
 				if (pAreaMesh == NULL) return -1;
-				memcpy(pAreaMesh->m_AreaName, pFileBuf + pos + 32, 16);
+				pAreaMesh->m_AreaName.assign(pFileBuf + pos + 32, 16);
 				pAreaMesh->LoadAreaMesh(pFileBuf + pos, this, FVF);
 				if (pAreaMesh->GetlpVB() == NULL || pAreaMesh->GetlpIB() == NULL) {
 					SAFE_DELETE(pAreaMesh);
@@ -2271,7 +2271,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 			else {
 				pAreaMesh = new CAreaMesh;
 				if (pAreaMesh == NULL) return -1;
-				memcpy(pAreaMesh->m_AreaName, pFileBuf + pos + 32, 16);
+				pAreaMesh->m_AreaName.assign(pFileBuf + pos + 32, 16);
 				pAreaMesh->LoadAreaMesh(pFileBuf + pos, this, FVF);
 				if (pAreaMesh->GetlpVB() == NULL || pAreaMesh->GetlpIB() == NULL) {
 					SAFE_DELETE(pAreaMesh);
@@ -2301,7 +2301,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 		m_pObjInfo[i].pAreaMesh = NULL;
 		pAreaMesh = (CAreaMesh*)m_AreaMeshs.Top();
 		while( pAreaMesh ) {
-			if( !memcmp(pAreaMesh->m_AreaName,m_pObjInfo[i].mObj.id,16) ) {
+			if( !memcmp(pAreaMesh->m_AreaName.c_str(),m_pObjInfo[i].mObj.id,16) ) {
 				m_pObjInfo[i].pAreaMesh = pAreaMesh;				
 				break;
 			}
@@ -2579,10 +2579,12 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 		if (Max4(BL.x, BH.x, BL2.x, BH2.x)<posX-DispArea) continue;
 		if (Min4(BL.z, BH.z, BL2.z, BH2.z)>posZ+DispArea) continue;
 		if (Max4(BL.z, BH.z, BL2.z, BH2.z)<posZ-DispArea) continue;
-		ptr = pAreaMesh->GetAreaName();
-		*(ptr + 17) = 0x0;
+		char areaNameBuf[18];
+		strncpy(areaNameBuf, pAreaMesh->m_AreaName.c_str(), 17);
+		areaNameBuf[17] = '\0';
+		ptr = areaNameBuf;
 		for (int i = 0; i < 18; i++ ) {
-			if (*ptr++ == 0x20) *ptr = 0x0;
+			if (*ptr++ == 0x20) *(ptr-1) = 0x0;
 		}
 		// バーテックスバッファをデバイスに設定
 		pAreaMesh->m_lpVB->Lock(0, pAreaMesh->m_VBSize, (void **)&pV, D3DLOCK_READONLY);
@@ -2593,7 +2595,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 		list<CStream>::iterator its2 = pAreaMesh->m_LStreams.begin();
 		list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
 		for (int count = 0; its2 != ite2; its2++, count++) {
-			fprintf(fd, "Object \"%s%02d\" {\n", pAreaMesh->GetAreaName(), count);
+			fprintf(fd, "Object \"%s%02d\" {\n", areaNameBuf, count);
 			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
 			pI = pIndex + its2->GetIndexStart();
 			idxmin = 65535; idxmax = 0;
@@ -2745,7 +2747,7 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 //	while (pAreaMesh) {
 	pEffect = (CEffect*)m_Effects.Top();
 	while (pEffect) {
-		if (memcmp(pEffect->m_class, g_className, 4)) {
+		if (memcmp(pEffect->m_class.c_str(), g_className, 4)) {
 			pEffect = (CEffect*)pEffect->Next;
 			continue;
 		}
@@ -2758,10 +2760,12 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 			AreaMatrix = pEffect->m_mRootTransform;
 			AreaMatrix *= RootMatrix;
 		}
-		ptr = pAreaMesh->GetAreaName();
-		*(ptr + 17) = 0x0;
+		char areaNameBuf[18];
+		strncpy(areaNameBuf, pAreaMesh->m_AreaName.c_str(), 17);
+		areaNameBuf[17] = '\0';
+		ptr = areaNameBuf;
 		for (int i = 0; i < 18; i++) {
-			if (*ptr++ == 0x20) *ptr = 0x0;
+			if (*ptr++ == 0x20) *(ptr-1) = 0x0;
 		}
 		// バーテックスバッファをデバイスに設定
 		pAreaMesh->m_lpVB->Lock(0, pAreaMesh->m_VBSize, (void **)&pV, D3DLOCK_READONLY);
@@ -2772,7 +2776,7 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 		list<CStream>::iterator its2 = pAreaMesh->m_LStreams.begin();
 		list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
 		for (int count = 0; its2 != ite2; its2++, count++) {
-			fprintf(fd, "Object \"%s%02d\" {\n", pAreaMesh->GetAreaName(), count);
+			fprintf(fd, "Object \"%s%02d\" {\n", areaNameBuf, count);
 			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
 //			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
 			pI = pIndex + its2->GetIndexStart();
@@ -2919,7 +2923,7 @@ bool CArea::saveMQO3(char *FPath, char *FName){
 	fprintf(fd, "}\n");
 	pEffect = (CEffect*)m_Effects.Top();
 	while (pEffect) {
-		if (memcmp(pEffect->m_class, g_className, 4)) {
+		if (memcmp(pEffect->m_class.c_str(), g_className, 4)) {
 			pEffect = (CEffect*)pEffect->Next;
 			continue;
 		}
@@ -2933,7 +2937,7 @@ bool CArea::saveMQO3(char *FPath, char *FName){
 			EffectMatrix *= RootMatrix;
 		}
 		char	objName[256];
-		strcpy(objName, pEffMdl->m_Name); Trim(objName);
+		strcpy(objName, pEffMdl->m_Name.c_str()); Trim(objName);
 		fprintf(fd, "Object \"%s\" {\n", objName);
 		fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
 		// バーテックスバッファをデバイスに設定

@@ -187,7 +187,8 @@ protected:
 	unsigned long			m_NumVertices, m_NumFaces, m_NumIndex, m_VBSize, m_IBSize, m_FVF;
 	LPDIRECT3DVERTEXBUFFER9 m_lpVB;
 	LPDIRECT3DINDEXBUFFER9	m_lpIB;
-	char					m_AreaName[18], m_AreaType[4];
+	std::string			m_AreaName;
+	std::string			m_AreaType;
 
 public:
 	CAreaMesh();
@@ -204,8 +205,10 @@ public:
 	virtual		LPDIRECT3DVERTEXBUFFER9	GetlpVB(void) { return m_lpVB; }
 	virtual		void		SetlpIB(LPDIRECT3DINDEXBUFFER9 lpIB) { m_lpIB = lpIB; }
 	virtual		LPDIRECT3DINDEXBUFFER9	GetlpIB(void) { return m_lpIB; }
-	virtual		void		SetAreaName(char *pAreaName) { strcpy(m_AreaName, pAreaName); }
-	virtual		char*		GetAreaName(void) { return m_AreaName; }
+	virtual		void		SetAreaName(const char *pAreaName) { m_AreaName = pAreaName; }
+	virtual		const char*		GetAreaName(void) { return m_AreaName.c_str(); }
+	virtual		void		SetAreaType(const char *pAreaType) { m_AreaType = pAreaType; }
+	virtual		const char*		GetAreaType(void) { return m_AreaType.c_str(); }
 	virtual		HRESULT		LoadAreaMesh(char *pFile, CArea *pArea, unsigned long FVF);
 	virtual     int			countTextures(void);
 }
@@ -230,8 +233,8 @@ public:
 	unsigned long			m_NumVertices, m_NumFaces, m_NumIndex, m_VBSize, m_IBSize, m_FVF;
 	LPDIRECT3DVERTEXBUFFER9 m_lpVB;
 	LPDIRECT3DINDEXBUFFER9	m_lpIB;
-	char					m_Name[20];
-	char					m_type[4];
+	std::string			m_Name;
+	std::string			m_type;
 	CEffectModel();
 	virtual		~CEffectModel();
 	virtual		HRESULT		LoadEffectModel(char *pFile);
@@ -251,7 +254,7 @@ private:
 	DWORD	m_startTime;	// アニメーションの開始時刻
 	DWORD	m_duration;		// アニメーションの長さ
 public:
-	char			m_type[6];
+	std::string			m_type;
 	CKeyFrame();	// デフォルトコンストラクタ
 	~CKeyFrame();	// デストラクタ
 public:
@@ -305,9 +308,9 @@ public:
 		m_1fdiv;		// 0x1Fデーターでdiv+1/360で発生
 	int				m_interval;		// 発生間隔
 	int				m_subID;		// ターゲット処理方法
-	char			m_class[6];   // エフェクトタイプ effe,fefs,ligh等
-	char			m_name[6],		// エフェクトID
-		m_target[6];	//
+	std::string			m_class;   // エフェクトタイプ effe,fefs,ligh等
+	std::string			m_name;		// エフェクトID
+	std::string			m_target;
 	CAreaMesh		*m_pAreaMesh;	// エリアメッシュポインタ
 	CEffectModel	*m_pEffectModel;	// エフェクトモデル 0x1F 0x21
 	DWORD			m_lifeTime;		// 存続時間

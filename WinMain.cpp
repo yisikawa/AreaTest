@@ -9,6 +9,9 @@
 #include "Area.h"
 #include "resource.h"
 #include <commdlg.h>
+#include <string>
+#include <vector>
+#include <fstream>
 
 #pragma comment(lib,"comdlg32.lib")
 
@@ -27,6 +30,8 @@ BOOL GetFileNameFromDno(LPSTR filename,DWORD dwID);
 #define PAI					(3.1415926535897932384626433832795f)
 #define PAI2				(PAI*2.0f)
 char	ffxidir[512];
+std::vector<std::string> g_ListArea;
+std::string g_execDir;
 extern	CArea			g_mArea;
 extern	D3DLIGHT9		g_mLight,g_mLightbase;
 extern	D3DXMATRIX		g_mProjection, g_mView,g_mEyeMat;
@@ -88,9 +93,9 @@ static const	LPCTSTR		ListWeather[] = {
 };
 
 // Area
-char	ListArea[1024][256];
-int	NumListArea = 0;
-char	execDir[512];
+//char	ListArea[1024][256];
+//int	NumListArea = 0;
+//char	execDir[512];
 
 //======================================================================
 //
@@ -122,19 +127,20 @@ DWORD	ConvertStr2Dno( char* DataName )
 	return Dno ;
 }
 
-BOOL GetFileNameFromDno(LPSTR filename,DWORD Dno)
+BOOL GetFileNameFromDno(LPSTR filename, DWORD Dno)
 {
 	int	no = LOWORD(Dno);
 
-	if( HIWORD(Dno)==1 ) wsprintf(filename,"%sROM\\%d\\%d.dat",ffxidir,no/0x80,no%0x80);
-	else if( HIWORD(Dno)==2 ) wsprintf(filename,"%sROM2\\%d\\%d.dat",ffxidir,no/0x80,no%0x80);
-	else if( HIWORD(Dno)==3 ) wsprintf(filename,"%sROM3\\%d\\%d.dat",ffxidir,no/0x80,no%0x80);
-	else if( HIWORD(Dno)==4 ) wsprintf(filename,"%sROM4\\%d\\%d.dat",ffxidir,no/0x80,no%0x80);
-	else if( HIWORD(Dno)==5 ) wsprintf(filename,"%sROM5\\%d\\%d.dat",ffxidir,no/0x80,no%0x80);
-	else if (HIWORD(Dno) == 6) wsprintf(filename, "%sROM6\\%d\\%d.dat", ffxidir, no / 0x80, no % 0x80);
-	else if (HIWORD(Dno) == 7) wsprintf(filename, "%sROM7\\%d\\%d.dat", ffxidir, no / 0x80, no % 0x80);
-	else if (HIWORD(Dno) == 8) wsprintf(filename, "%sROM8\\%d\\%d.dat", ffxidir, no / 0x80, no % 0x80);
-	else if (HIWORD(Dno) == 9) wsprintf(filename, "%sROM9\\%d\\%d.dat", ffxidir, no / 0x80, no % 0x80);
+	const char* dir = ffxidir;
+	if (HIWORD(Dno) == 1) sprintf(filename, "%sROM\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
+	else if (HIWORD(Dno) == 2) sprintf(filename, "%sROM2\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
+	else if (HIWORD(Dno) == 3) sprintf(filename, "%sROM3\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
+	else if (HIWORD(Dno) == 4) sprintf(filename, "%sROM4\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
+	else if (HIWORD(Dno) == 5) sprintf(filename, "%sROM5\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
+	else if (HIWORD(Dno) == 6) sprintf(filename, "%sROM6\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
+	else if (HIWORD(Dno) == 7) sprintf(filename, "%sROM7\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
+	else if (HIWORD(Dno) == 8) sprintf(filename, "%sROM8\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
+	else if (HIWORD(Dno) == 9) sprintf(filename, "%sROM9\\%d\\%d.dat", dir, no / 0x80, no % 0x80);
 	return TRUE;
 }
 
@@ -200,8 +206,8 @@ void BackAt( void )
 int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
 {
 	HKEY hKey;
-	GetCurrentDirectory(sizeof(execDir),execDir);
-	strcpy(execDir,".");
+	char tmp[512];
+	GetCurrentDirectory(sizeof(tmp), tmp); g_execDir = tmp;
 #if 0
 	strcpy(ffxidir,"C:\\cross1");
 #else
@@ -214,7 +220,7 @@ int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
 	}
 	if( !*ffxidir ){
 		MessageBox(NULL,"Please start a PC on which you are installing the FinalFantasyXIÅI","FF XI is not installed",MB_OK);
-		GetCurrentDirectory(sizeof(ffxidir),ffxidir);
+		strcpy(ffxidir, g_execDir.c_str());
 		return -1;
 	}
 #endif
@@ -375,21 +381,25 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 
 	switch( in_Message ) {
         case WM_INITDIALOG:
-			NumListArea = 0;
-			sprintf(ListName,"%s\\List\\Area.lst",execDir);
-			if ((fd = fopen(ListName, "r")) != NULL ) {
-				for(i=0 ; fgets(ListArea[i],sizeof(ListArea[i]),fd) && i<512 ; i++);
-				fclose(fd);
-				NumListArea = i;
+		{
+			g_ListArea.clear();
+			std::string listPath = g_execDir + "\\List\\Area.lst";
+			std::ifstream ifs(listPath);
+			if (ifs) {
+				std::string line;
+				while (std::getline(ifs, line) && g_ListArea.size() < LIST_LIMIT) {
+					g_ListArea.push_back(line);
+				}
 			}
+		}
 			//for( i=0 ; i<3 ; i++ ) {     
 		 //       SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListBright[i]);
 			//}
 		    //SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)g_mAreaBright, 0L);
 //			for( i=0 ; i<NumListArea ; i++ ) { 
-			for (i = 0; i<LIST_LIMIT && i<NumListArea ; i++) {
+			for (i = 0; i < (int)g_ListArea.size() ; i++) {
 					int	w5, w6, w7;
-				sscanf(ListArea[i],"%d-%d-%d,%d,%d,%d,%s",&w1,&w2,&w3,&w5,&w6,&w7,ww);
+				sscanf(g_ListArea[i].c_str(),"%d-%d-%d,%d,%d,%d,%s",&w1,&w2,&w3,&w5,&w6,&w7,ww);
 				sprintf(ComboString,"%d-%d-%d,%s",w1,w2,w3,ww);
 		        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ComboString);
 			}
@@ -441,7 +451,7 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 						case 0x62:
 							pKeyframe = (CKeyFrame*)g_mArea.m_KeyFrames.Top();
 							while (pKeyframe) {
-								if (!memcmp(tName, pKeyframe->m_type,strlen(tName)) ) {
+								if (!memcmp(tName, pKeyframe->m_type.c_str(), strlen(tName))) {
 									pKeyframe->outputValue(GetDlgItem(in_hWnd, IDC_LIST2));
 									break;
 								}
@@ -456,9 +466,9 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 					if( HIWORD(in_wParam) == CBN_SELCHANGE ) {
 						//	ÉGÉäÉAÇÃê›íË
 						ComboNo = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_GETCURSEL, 0L, 0L);
-						sscanf(ListArea[ComboNo],"%d-%d-%d,%f,%f,%f,%s",&w1,&w2,&w3,
+						sscanf(g_ListArea[ComboNo].c_str(),"%d-%d-%d,%f,%f,%f,%s",&w1,&w2,&w3,
 							&g_mEntry.x,&g_mEntry.y,&g_mEntry.z,ww);
-						g_mArea.SetArea( ConvertStr2Dno2((char*)ListArea[ComboNo]) );
+						g_mArea.SetArea( ConvertStr2Dno2((char*)g_ListArea[ComboNo].c_str()) );
 						if( !g_mArea.LoadMAP() ) return -1;
 						g_mAt.x = g_mEntry.x;g_mAt.y = g_mEntry.y;g_mAt.z = g_mEntry.z;
 						D3DXVECTOR3 Eye;
@@ -470,10 +480,10 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 						}
 						pEffect = (CEffect*)g_mArea.m_Effects.Top();
 						while (pEffect) {
-							index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_FINDSTRINGEXACT, 0, (LPARAM)pEffect->m_class);
+							index = SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_FINDSTRINGEXACT, 0, (LPARAM)pEffect->m_class.c_str());
 							if (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_FINDSTRINGEXACT,
-								0, (LPARAM)pEffect->m_class) < 0) {
-								SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_ADDSTRING, (WPARAM)0, (LPARAM)pEffect->m_class);
+								0, (LPARAM)pEffect->m_class.c_str()) < 0) {
+								SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_ADDSTRING, (WPARAM)0, (LPARAM)pEffect->m_class.c_str());
 							}
 							pEffect = (CEffect*)pEffect->Next;
 						}
@@ -485,8 +495,8 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETLBTEXT, (WORD)index, (LONG)g_className);
 						pEffect = (CEffect*)g_mArea.m_Effects.Top();
 						while (pEffect) {
-							if (!memcmp(pEffect->m_class, g_className, 4)) {
-								sprintf(ComboString, "ID[%s] class[%s]", pEffect->m_name, pEffect->m_class);
+							if (!memcmp(pEffect->m_class.c_str(), g_className, 4)) {
+								sprintf(ComboString, "ID[%s] class[%s]", pEffect->m_name.c_str(), pEffect->m_class.c_str());
 								SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_ADDSTRING, (WPARAM)0, (LPARAM)ComboString);
 							}
 							pEffect = (CEffect*)pEffect->Next;
@@ -502,8 +512,8 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 							&tClass[0],&tClass[1],&tClass[2],&tClass[3]);
 						pEffect = (CEffect*)g_mArea.m_Effects.Top();
 						while (pEffect) {
-							if (!memcmp(tName, pEffect->m_name,strlen(pEffect->m_name))&&
-								!memcmp(tClass, pEffect->m_class,strlen(pEffect->m_class)) ) {
+							if (!memcmp(tName, pEffect->m_name.c_str(), pEffect->m_name.length())&&
+								!memcmp(tClass, pEffect->m_class.c_str(),pEffect->m_class.length()) ) {
 								pEffect->outputProp(GetDlgItem(in_hWnd, IDC_LIST1));
 								break;
 							}
@@ -529,8 +539,8 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 						SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETLBTEXT, (WORD)index, (LONG)g_className);
 						pEffect = (CEffect*)g_mArea.m_Effects.Top();
 						while (pEffect) {
-							if (!memcmp(pEffect->m_class, g_className, 4)) {
-								sprintf(ComboString, "ID[%s] class[%s]", pEffect->m_name, pEffect->m_class);
+							if (!memcmp(pEffect->m_class.c_str(), g_className, 4)) {
+								sprintf(ComboString, "ID[%s] class[%s]", pEffect->m_name.c_str(), pEffect->m_class.c_str());
 								SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_ADDSTRING, (WPARAM)0, (LPARAM)ComboString);
 							}
 							pEffect = (CEffect*)pEffect->Next;
@@ -553,8 +563,8 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 							&tClass[0],&tClass[1],&tClass[2],&tClass[3]);
 						pEffect = (CEffect*)g_mArea.m_Effects.Top();
 						while (pEffect) {
-							if (!memcmp(tName, pEffect->m_name,strlen(pEffect->m_name))&&
-								!memcmp(tClass, pEffect->m_class,strlen(pEffect->m_class)) ) {
+							if (!memcmp(tName, pEffect->m_name.c_str(), pEffect->m_name.length())&&
+								!memcmp(tClass, pEffect->m_class.c_str(),pEffect->m_class.length()) ) {
 								pEffect->outputProp(GetDlgItem(in_hWnd, IDC_LIST1));
 								break;
 							}
