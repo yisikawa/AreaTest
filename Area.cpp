@@ -1,3 +1,4 @@
+#include <memory>
 // INCLUDE
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
@@ -15,10 +16,10 @@ HRESULT CreateVB( LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD 
 HRESULT CreateIB( LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage );
 // DEFINE
 #define SAFE_RELEASE(p)		if ( (p) != NULL ) { (p)->Release(); (p) = NULL; }
-#define SAFE_DELETES(p)		if ( (p) != NULL ) { delete [] (p); (p) = NULL; }
-#define SAFE_DELETE(p)		if ( (p) != NULL ) { delete (p); (p) = NULL; }
-#define PAI					(3.1415926535897932384626433832795f)
-#define PAI2				(3.1415926535897932384626433832795f*2.0f)
+//#define SAFE_DELETES(p)
+//#define SAFE_DELETE(p)
+constexpr float PAI = 3.14159265358979323846f;
+constexpr float PAI2 = PAI * 2.0f;
 static const D3DXMATRIX matrixMirrorX(-1.0f,0,0,0,  0, 1.0f,0,0,  0,0, 1.0f,0,  0,0,0,1.0f);
 static const D3DXMATRIX matrixMirrorY( 1.0f,0,0,0,  0,-1.0f,0,0,  0,0, 1.0f,0,  0,0,0,1.0f);
 static const D3DXMATRIX matrixMirrorZ( 1.0f,0,0,0,  0, 1.0f,0,0,  0,0,-1.0f,0,  0,0,0,1.0f);
@@ -41,29 +42,17 @@ extern	char		g_className[];
 
 
 int Trim(char *s) {
-	int i;
-	int count = 0;
-
-	/* 空ポインタか? */
-	if (s == NULL) { /* yes */
-		return -1;
+	if (s == NULL) return -1;
+	std::string str(s);
+	size_t start = str.find_first_not_of(' ');
+	if (start == std::string::npos) {
+		s[0] = '\0';
+		return 0;
 	}
-
-	/* 文字列長を取得する */
-	i = strlen(s);
-
-	/* 末尾から順に空白でない位置を探す */
-	while (--i >= 0 && s[i] == ' ') count++;
-
-	/* 終端ナル文字を付加する */
-	s[i + 1] = '\0';
-
-	/* 先頭から順に空白でない位置を探す */
-	i = 0;
-	while (s[i] != '\0' && s[i] == ' ') i++;
-	strcpy(s, &s[i]);
-
-	return i + count;
+	size_t end = str.find_last_not_of(' ');
+	str = str.substr(start, end - start + 1);
+	strcpy(s, str.c_str());
+	return str.length();
 }
 
 char * // 文字列へのポインタ
@@ -73,15 +62,11 @@ const char *string, // 検索対象文字列
 const char *pattern // 検索する文字列
 )
 {
-	// 文字列終端に達するまで検索を繰り返す。
-	const char *last = NULL;
-	{for (const char *p = string; NULL != (p = strstr(p, pattern)); ++p)
-	{
-		last = p;
-		if ('\0' == *p)
-			return (char *)last;
-	}}
-	return (char *)last;
+	if (!string || !pattern) return NULL;
+	std::string s(string);
+	size_t pos = s.rfind(pattern);
+	if (pos == std::string::npos) return NULL;
+	return (char*)(string + pos);
 }//strrstr
 
 
@@ -237,33 +222,24 @@ static char *pVertexShaders[3] =
 
 float Min4( float v1, float v2, float v3, float v4 )
 {
-	float val;
-
-	val = min( v1, v2 );
-	val = min( val, v3 );
-	val = min( val, v4 );
-	return val;
+	float val = (std::min)(v1, v2);
+	val = (std::min)(val, v3);
+	return (std::min)(val, v4);
 }
 
 float Max4( float v1, float v2, float v3, float v4 )
 {
-	float val;
-
-	val = max( v1, v2 );
-	val = max( val, v3 );
-	val = max( val, v4 );
-	return val;
+	float val = (std::max)(v1, v2);
+	val = (std::max)(val, v3);
+	return (std::max)(val, v4);
 }
 
 float Max5( float v1, float v2, float v3, float v4,float v5 )
 {
-	float val;
-
-	val = max( v1, v2 );
-	val = max( val, v3 );
-	val = max( val, v4 );
-	val = max( val, v5 );
-	return val;
+	float val = (std::max)(v1, v2);
+	val = (std::max)(val, v3);
+	val = (std::max)(val, v4);
+	return (std::max)(val, v5);
 }
 
 //		コンストラクタ
@@ -1618,7 +1594,7 @@ HRESULT CAreaMesh::LoadAreaMesh( char *pFile, CArea *pArea, unsigned long FVF )
 			pV += nVertex;
 			memcpy((char*)pIndex,(char*)pIdx,sizeof(WORD)*nIndex);
 			pIndex += nIndex;
-			SAFE_DELETES( pIdx );
+			delete[] pIdx; pIdx = NULL;
 			m_LStreams.push_back( tStream );
 			NumVertices += nVertex;
 			NumFaces	+= nIndex -2;
@@ -1683,7 +1659,7 @@ CArea::~CArea()
 		pTexture = (CTexture*)pTexture->Next;
 	}
 	m_Textures.Release();
-	SAFE_DELETES( m_pObjInfo );
+	delete[] m_pObjInfo; m_pObjInfo = NULL;
 }
 
 //		データの初期化
@@ -1708,7 +1684,7 @@ void	CArea::InitData(void)
 		pTexture = (CTexture*)pTexture->Next;
 	}
 	m_Textures.Release();
-	SAFE_DELETES( m_pObjInfo );
+	delete[] m_pObjInfo; m_pObjInfo = NULL;
 	m_pObjInfo		= NULL;
 	m_nObj			= 0;
 }
@@ -1737,6 +1713,7 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 	HRESULT hr							= S_OK;
 
 	// ファイルをメモリに取り込む
+	std::unique_ptr<char[]> auto_pdat;
 	char *pdat=NULL, path[512];
 	int dwSize;
 	unsigned long	cnt;
@@ -1745,7 +1722,8 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 	HANDLE hFile = CreateFile(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
 	if( hFile!=INVALID_HANDLE_VALUE ){
 		dwSize = GetFileSize(hFile,NULL);
-	    pdat = new char[dwSize]();
+	    auto_pdat.reset(new char[dwSize]());
+		pdat = auto_pdat.get();
 	    ReadFile(hFile,pdat,dwSize,&cnt,NULL);
 	    CloseHandle(hFile);
 		hr = 0;
@@ -1812,7 +1790,7 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 		pos+=next;
 	}
 	// 終了
-	SAFE_DELETES(pdat);
+	// SAFE_DELETES(pdat); (Managed by std::unique_ptr)
 //	delete pdat;
 	return hr;
 }
@@ -1836,6 +1814,7 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 	//====================================================
 	// ファイルをメモリに取り込む
 	//====================================================
+	std::unique_ptr<char[]> auto_pdat;
 	char *pdat = NULL;
 	int dwSize;
 	CKeyFrame *pKeyFrame;
@@ -1845,7 +1824,8 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
 	if (hFile != INVALID_HANDLE_VALUE){
 		dwSize = GetFileSize(hFile, NULL);
-		pdat = new char[dwSize]();
+		auto_pdat.reset(new char[dwSize]());
+		pdat = auto_pdat.get();
 		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
 		CloseHandle(hFile);
 		hr = 0;
@@ -1921,7 +1901,7 @@ HRESULT CArea::LoadEffectFromFile(char *FileName)
 		}
 		pEffect = (CEffect*)pEffect->Next;
 	}
-	SAFE_DELETES(pdat);
+	// SAFE_DELETES(pdat); (Managed by std::unique_ptr)
 	return hr;
 }
 //======================================================================
@@ -1947,13 +1927,15 @@ HRESULT CArea::LoadEffectModelFromFile(char *FileName)
 	//====================================================
 	// ファイルをメモリに取り込む
 	//====================================================
+	std::unique_ptr<char[]> auto_pdat;
 	char *pdat = NULL;
 	int dwSize;
 	unsigned long	cnt;
 	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
 	if (hFile != INVALID_HANDLE_VALUE){
 		dwSize = GetFileSize(hFile, NULL);
-		pdat = new char[dwSize]();
+		auto_pdat.reset(new char[dwSize]());
+		pdat = auto_pdat.get();
 		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
 		CloseHandle(hFile);
 		hr = 0;
@@ -1991,7 +1973,7 @@ HRESULT CArea::LoadEffectModelFromFile(char *FileName)
 		pos += next;
 	}
 	// 終了
-	SAFE_DELETES(pdat);
+	// SAFE_DELETES(pdat); (Managed by std::unique_ptr)
 	return hr;
 }
 
@@ -2016,13 +1998,15 @@ HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
 	//====================================================
 	// ファイルをメモリに取り込む
 	//====================================================
+	std::unique_ptr<char[]> auto_pdat;
 	char *pdat = NULL;
 	int dwSize;
 	unsigned long	cnt;
 	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
 	if (hFile != INVALID_HANDLE_VALUE){
 		dwSize = GetFileSize(hFile, NULL);
-		pdat = new char[dwSize]();
+		auto_pdat.reset(new char[dwSize]());
+		pdat = auto_pdat.get();
 		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
 		CloseHandle(hFile);
 		hr = 0;
@@ -2049,7 +2033,7 @@ HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
 			pEffectModel->LoadEffectModel2(pdat + pos);
 			if (pEffectModel->m_ModelTotal <= 0) {
 				m_EffectModels.Erase(pEffectModel);
-				SAFE_DELETE(pEffectModel);
+				delete pEffectModel; pEffectModel = NULL;
 			}
 			else {
 				pTexture = (CTexture*)m_Textures.Top();
@@ -2068,7 +2052,7 @@ HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
 		pos += next;
 	}
 	// 終了
-	SAFE_DELETES(pdat);
+	// SAFE_DELETES(pdat); (Managed by std::unique_ptr)
 	return hr;
 }
 
@@ -2192,7 +2176,8 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 	CAreaMesh		*pAreaMesh;
 	HRESULT			hr			=	S_OK;
 	unsigned long	cnt;
-	char			*pFileBuf	= NULL;
+	std::unique_ptr<char[]> auto_pFileBuf;
+	char *pFileBuf = NULL;
 	int				mFileSize	=	0;
 	D3DXVECTOR3		BL,BH,BM1,BM2;
 
@@ -2200,7 +2185,8 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 	HANDLE hFile = CreateFile(FileName,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
 	if( hFile!=INVALID_HANDLE_VALUE ){
 		mFileSize = GetFileSize(hFile,NULL);
-	    pFileBuf = new char[mFileSize]();
+	    auto_pFileBuf.reset(new char[mFileSize]());
+	    pFileBuf = auto_pFileBuf.get();
 	    hr = ReadFile(hFile,pFileBuf,mFileSize,&cnt,NULL);
 	    CloseHandle(hFile);
 		hr = 0;
@@ -2232,7 +2218,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 				for( i=0 ; i<nObj ; i++,pTobj++ ) {
 					memcpy((char*)(pObjInfo+m_nObj+i),(char*)pTobj,sizeof(TEMPOBJINFO));
 				}
-				SAFE_DELETES( m_pObjInfo );
+				delete[] m_pObjInfo; m_pObjInfo = NULL;
 				m_pObjInfo = pObjInfo;
 				m_nObj += nObj;
 			}
@@ -2261,7 +2247,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 				pAreaMesh->m_AreaName.assign(pFileBuf + pos + 32, 16);
 				pAreaMesh->LoadAreaMesh(pFileBuf + pos, this, FVF);
 				if (pAreaMesh->GetlpVB() == NULL || pAreaMesh->GetlpIB() == NULL) {
-					SAFE_DELETE(pAreaMesh);
+					delete pAreaMesh; pAreaMesh = NULL;
 				}
 				else {
 					//				m_LAreaMeshs.push_back(*pAreaMesh );
@@ -2274,7 +2260,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 				pAreaMesh->m_AreaName.assign(pFileBuf + pos + 32, 16);
 				pAreaMesh->LoadAreaMesh(pFileBuf + pos, this, FVF);
 				if (pAreaMesh->GetlpVB() == NULL || pAreaMesh->GetlpIB() == NULL) {
-					SAFE_DELETE(pAreaMesh);
+					delete pAreaMesh; pAreaMesh = NULL;
 				}
 				else {
 					//				m_LAreaMeshs.push_back(*pAreaMesh );
@@ -2310,7 +2296,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 		if( pAreaMesh==NULL ) continue;
 		if( (m_pObjInfo[i].mObj.fe&0xfff0fff0)!=0 ) continue;
 	}
-	SAFE_DELETES( pFileBuf );
+	// SAFE_DELETES( pFileBuf ); (Managed by std::unique_ptr)
 	return hr;
 }
 
