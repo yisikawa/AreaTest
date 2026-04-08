@@ -2489,6 +2489,28 @@ bool CArea::LoadMAP()
 	return true;
 }
 
+// ミラー判定
+BOOL IsMirrorMatrix(const D3DXMATRIX* pMat) {
+	// 行列式を計算
+	FLOAT det = D3DXMatrixDeterminant(pMat);
+	// 行列式が負であれば反転（ミラー）が含まれている
+	return (det < 0.0f);
+}
+
+// 代替関数
+D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2) {
+	D3DXVECTOR3 edge1 = *pV1 - *pV0;
+	D3DXVECTOR3 edge2 = *pV2 - *pV0;
+
+	// 外積（Cross Product）を計算
+	D3DXVec3Cross(pOut, &edge1, &edge2);
+
+	// 長さを1に正規化（Normalize）
+	D3DXVec3Normalize(pOut, pOut);
+
+	return pOut;
+}
+
 //======================================================================
 //		MQOセーブ		通常データをMQOフォーマットで出力します
 //======================================================================
@@ -2498,7 +2520,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 	char			*ptr, path[256],texpath[256];
 	D3DTEXVERTEX	*pV;
 	D3DTEXVERTEX	mVertex;
-	D3DXVECTOR3     mVer;
+	D3DXVECTOR3     mVer,normF,normV1,normV2,normV3;
 	WORD			*pIndex, *pI;
 	int				cnt,nVer, nFace,idxmin,idxmax;
 	int				i1, i2, i3, t1, t2, t3;
@@ -2539,7 +2561,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 		texNo++;
 	}
 	fprintf(fd, "}\n");
-	for (int num = 0; num<m_nObj; num++) {
+	for (int num = 0; num < m_nObj; num++) {
 		if ((m_pObjInfo[num].mObj.fe & 0xfff0ffff) == 0) {
 			DispArea = g_mDispArea;
 		}
@@ -2561,21 +2583,21 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 		D3DXVec3TransformCoord(&BL, &BL, &AreaMatrix);
 		D3DXVec3TransformCoord(&BL2, &BL2, &AreaMatrix);
 		D3DXVec3TransformCoord(&BH2, &BH2, &AreaMatrix);
-		if (Min4(BL.x, BH.x, BL2.x, BH2.x)>posX+DispArea) continue;
-		if (Max4(BL.x, BH.x, BL2.x, BH2.x)<posX-DispArea) continue;
-		if (Min4(BL.z, BH.z, BL2.z, BH2.z)>posZ+DispArea) continue;
-		if (Max4(BL.z, BH.z, BL2.z, BH2.z)<posZ-DispArea) continue;
+		if (Min4(BL.x, BH.x, BL2.x, BH2.x) > posX + DispArea) continue;
+		if (Max4(BL.x, BH.x, BL2.x, BH2.x) < posX - DispArea) continue;
+		if (Min4(BL.z, BH.z, BL2.z, BH2.z) > posZ + DispArea) continue;
+		if (Max4(BL.z, BH.z, BL2.z, BH2.z) < posZ - DispArea) continue;
 		char areaNameBuf[18];
 		strncpy(areaNameBuf, pAreaMesh->m_AreaName.c_str(), 17);
 		areaNameBuf[17] = '\0';
 		ptr = areaNameBuf;
-		for (int i = 0; i < 18; i++ ) {
-			if (*ptr++ == 0x20) *(ptr-1) = 0x0;
+		for (int i = 0; i < 18; i++) {
+			if (*ptr++ == 0x20) *(ptr - 1) = 0x0;
 		}
 		// バーテックスバッファをデバイスに設定
-		pAreaMesh->m_lpVB->Lock(0, pAreaMesh->m_VBSize, (void **)&pV, D3DLOCK_READONLY);
+		pAreaMesh->m_lpVB->Lock(0, pAreaMesh->m_VBSize, (void**)&pV, D3DLOCK_READONLY);
 		// インデックスバッファをデバイスに設定
-		pAreaMesh->m_lpIB->Lock(0, pAreaMesh->m_IBSize, (void **)&pIndex, D3DLOCK_READONLY);
+		pAreaMesh->m_lpIB->Lock(0, pAreaMesh->m_IBSize, (void**)&pIndex, D3DLOCK_READONLY);
 		nVer = nFace = 0;
 		// 
 		list<CStream>::iterator its2 = pAreaMesh->m_LStreams.begin();
@@ -2590,11 +2612,11 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 				if (i1 > idxmax) idxmax = i1;
 				if (i1 < idxmin) idxmin = i1;
 			}
-			fprintf(fd, "vertex %d {\n", idxmax-idxmin+1);
+			fprintf(fd, "vertex %d {\n", idxmax - idxmin + 1);
 			for (unsigned long verCnt = idxmin; verCnt <= idxmax; verCnt++) {
 				mVertex = *(pV + verCnt); mVer = mVertex.v;
 				D3DXVec3TransformCoord(&mVer, &mVer, &AreaMatrix);
-				fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
+				fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x * 10., mVer.y * 10., mVer.z * 10.);
 			}
 			fprintf(fd, "\t}\n");
 			if (its2->GetPrimitiveType() == D3DPT_TRIANGLESTRIP) {
@@ -2602,7 +2624,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 				nFace = 0;
 				for (nVer = 0; nVer < its2->GetFaceCount() + 2;) {
 					i1 = *pI++ - idxmin; nVer++; i2 = *pI++ - idxmin; nVer++;
-					while (nVer<its2->GetFaceCount() + 2) {
+					while (nVer < its2->GetFaceCount() + 2) {
 						i3 = *pI++ - idxmin; nVer++;
 						if (i2 == i3) {
 							pI++; nVer++;
@@ -2620,21 +2642,41 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 					cnt = 0;
 					i1 = (*pI++) - idxmin; nVer++;
 					i2 = (*pI++) - idxmin; nVer++;
-					while( nVer<its2->GetFaceCount()+2 )  {
+					while (nVer < its2->GetFaceCount() + 2) {
 						i3 = (*pI++) - idxmin; nVer++;
 						if (i2 == i3) {
 							pI++; nVer++; break;
 						}
-						if ( nVer % 2) {
+						if (nVer % 2) {
 							t1 = i3; t2 = i2; t3 = i1;
 						}
 						else {
 							t1 = i1; t2 = i2; t3 = i3;
 						}
-						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-							t1 , t2 , t3, its2->m_TexNo,
-							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-							(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
+						//ComputeFaceNormal(&normF, &((pV + idxmin + t1)->v),&((pV + idxmin + t2)->v),&((pV + idxmin + t3)->v));
+						//D3DXVec3Normalize(&normV1, &(pV + idxmin + t1)->n);
+						//D3DXVec3Normalize(&normV2, &(pV + idxmin + t2)->n);
+						//D3DXVec3Normalize(&normV3, &(pV + idxmin + t3)->n);
+						//D3DXVec3TransformNormal(&normV1, &normV1, &AreaMatrix);
+						//D3DXVec3TransformNormal(&normV2, &normV2, &AreaMatrix);
+						//D3DXVec3TransformNormal(&normV3, &normV3, &AreaMatrix);
+						if(IsMirrorMatrix(&AreaMatrix)) {
+						//if (D3DXVec3Dot(&normF, &normV1) < 0 ||
+						//	D3DXVec3Dot(&normF, &normV2) < 0 ||
+						//	D3DXVec3Dot(&normF, &normV3) < 0 ) {
+							fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+								t1, t2, t3, its2->m_TexNo,
+								(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
+								(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
+
+
+						} else {
+							fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+								t1, t3, t2, its2->m_TexNo,
+								(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t3)->tu,
+								(pV + idxmin + t3)->tv, (pV + idxmin + t2)->tu, (pV + idxmin + t2)->tv);
+
+						}
 						cnt++; nFace++;
 						i1 = i2; i2 = i3;
 					}
@@ -2661,10 +2703,30 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 				for (unsigned int i = 0; i<its2->GetFaceCount(); i++) {
 					i1 = (*pI++)-idxmin; i2 = (*pI++)-idxmin; i3 = (*pI++)-idxmin;
 					t1 = i3; t2 = i2; t3 = i1;
-					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-						t1, t2, t3, its2->m_TexNo,
-						(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-						(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
+					//ComputeFaceNormal(&normF, &((pV + idxmin + t1)->v), &((pV + idxmin + t2)->v), &((pV + idxmin + t3)->v));
+					//D3DXVec3Normalize(&normV1, &(pV + idxmin + t1)->n);
+					//D3DXVec3Normalize(&normV2, &(pV + idxmin + t2)->n);
+					//D3DXVec3Normalize(&normV3, &(pV + idxmin + t3)->n);
+					//D3DXVec3TransformNormal(&normV1, &normV1, &AreaMatrix);
+					//D3DXVec3TransformNormal(&normV2, &normV2, &AreaMatrix);
+					//D3DXVec3TransformNormal(&normV3, &normV3, &AreaMatrix);
+					if (IsMirrorMatrix(&AreaMatrix)) {
+					//if (D3DXVec3Dot(&normF, &normV1) < 0 ||
+					//	D3DXVec3Dot(&normF, &normV2) < 0 ||
+					//	D3DXVec3Dot(&normF, &normV3) < 0 ) {
+						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+							t1, t2, t3, its2->m_TexNo,
+							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
+							(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
+
+
+					} else {
+						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+							t1, t3, t2, its2->m_TexNo,
+							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t3)->tu,
+							(pV + idxmin + t3)->tv, (pV + idxmin + t2)->tu, (pV + idxmin + t2)->tv);
+
+					}
 				}
 			}
 			fprintf(fd, "\t}\n");
