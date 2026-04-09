@@ -14,6 +14,8 @@ BOOL GetFileNameFromDno(LPSTR filename,DWORD dwID);
 DWORD	ConvertStr2Dno( char* DataName );
 HRESULT CreateVB( LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD fvf );
 HRESULT CreateIB( LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage );
+BOOL IsMirrorMatrix(const D3DXMATRIX* pMat);
+D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2);
 // DEFINE
 #define SAFE_RELEASE(p)		if ( (p) != NULL ) { (p)->Release(); (p) = NULL; }
 //#define SAFE_DELETES(p)
@@ -2402,6 +2404,21 @@ unsigned long CArea::Rendering( float PosX, float PosY, float PosZ )
 		for( ; its != ite ; its++ ) {	
 			if( its->GetAlphaFlag() & 0x02 || its->GetStencilFlag() ) {
 				GetDevice()->SetRenderState( D3DRS_CULLMODE,		D3DCULL_NONE );
+			}
+			if (its->GetPrimitiveType() == D3DPT_TRIANGLESTRIP) {
+				if (IsMirrorMatrix(&m_pObjInfo[i].mMat)) {
+					GetDevice()->SetRenderState(D3DRS_CULLMODE, D3DCULL_CW);
+				}
+				else {
+					GetDevice()->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+				}
+			} else if (its->GetPrimitiveType() == D3DPT_TRIANGLELIST) {
+				if (IsMirrorMatrix(&m_pObjInfo[i].mMat)) {
+					GetDevice()->SetRenderState(D3DRS_CULLMODE, D3DCULL_CW);
+				}
+				else {
+					GetDevice()->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
+				}
 			} else {
 				if( (m_pObjInfo[i].mObj.fScaleX*m_pObjInfo[i].mObj.fScaleZ)<0.f )
 					GetDevice()->SetRenderState( D3DRS_CULLMODE,	D3DCULL_CW );
