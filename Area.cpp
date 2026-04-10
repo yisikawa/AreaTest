@@ -1694,7 +1694,7 @@ void	CArea::InitData(void)
 
 bool convert_tex_path(char* src,const char* base) {
 	// 検索の目印となる文字列（ゲームのデータフォルダ名）
-	static const char* search_term = "ROM\\";
+	static const char* search_term = "ROM";
 	// 新しいベースディレクトリ
 	static const char* new_base = base;
 	// "ROM\" が出現する位置を検索
