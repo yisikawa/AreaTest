@@ -1692,7 +1692,7 @@ void	CArea::InitData(void)
 	m_nObj			= 0;
 }
 
-bool convert_tex_path(char* src,const char* base) {
+bool convert_path(char* src,const char* base) {
 	// 検索の目印となる文字列（ゲームのデータフォルダ名）
 	static const char* search_term = "ROM";
 	// 新しいベースディレクトリ
@@ -1722,7 +1722,7 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 	unsigned long	cnt;
 	strcpy(path, FileName);
 	if (strlen(g_texPath) > 0) {
-		convert_tex_path(path, g_texPath);
+		convert_path(path, g_texPath);
 	}
 
 	HANDLE hFile = CreateFile(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
@@ -2189,7 +2189,7 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 
 	strcpy(path, FileName);
 	if (strlen(g_meshPath) > 0) {
-		convert_tex_path(path, g_meshPath);
+		convert_path(path, g_meshPath);
 	}
 	// ファイルをメモリに取り込む
 	HANDLE hFile = CreateFile(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
