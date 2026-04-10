@@ -41,7 +41,8 @@ extern	float		g_mLightDist;
 extern	D3DXVECTOR3	g_mLightPosition;
 extern	D3DXMATRIX	g_mViewLight;					// ライトから見た場合のビューマトリックス 
 extern	char		g_className[];
-
+extern	char		g_meshPath[];
+extern	char		g_texPath[];
 
 int Trim(char *s) {
 	if (s == NULL) return -1;
@@ -1691,11 +1692,11 @@ void	CArea::InitData(void)
 	m_nObj			= 0;
 }
 
-bool convert_tex_path(char* src) {
+bool convert_tex_path(char* src,const char* base) {
 	// 検索の目印となる文字列（ゲームのデータフォルダ名）
 	static const char* search_term = "ROM\\";
 	// 新しいベースディレクトリ
-	static const char* new_base = "Z:\\DataFBX\\FFXI\\";
+	static const char* new_base = base;
 	// "ROM\" が出現する位置を検索
 	const char* relative_path = strstr(src, search_term);
 	if (relative_path != NULL) {
@@ -1720,7 +1721,10 @@ HRESULT CArea::LoadTextureFromFile( char *FileName  )
 	int dwSize;
 	unsigned long	cnt;
 	strcpy(path, FileName);
-	convert_tex_path(path);
+	if (strlen(g_texPath) > 0) {
+		convert_tex_path(path, g_texPath);
+	}
+
 	HANDLE hFile = CreateFile(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
 	if( hFile!=INVALID_HANDLE_VALUE ){
 		dwSize = GetFileSize(hFile,NULL);
@@ -2179,12 +2183,16 @@ HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
 	HRESULT			hr			=	S_OK;
 	unsigned long	cnt;
 	std::unique_ptr<char[]> auto_pFileBuf;
-	char *pFileBuf = NULL;
+	char			*pFileBuf = NULL,path[512];
 	int				mFileSize	=	0;
 	D3DXVECTOR3		BL,BH,BM1,BM2;
 
+	strcpy(path, FileName);
+	if (strlen(g_meshPath) > 0) {
+		convert_tex_path(path, g_meshPath);
+	}
 	// ファイルをメモリに取り込む
-	HANDLE hFile = CreateFile(FileName,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
+	HANDLE hFile = CreateFile(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
 	if( hFile!=INVALID_HANDLE_VALUE ){
 		mFileSize = GetFileSize(hFile,NULL);
 	    auto_pFileBuf.reset(new char[mFileSize]());
