@@ -70,3 +70,9 @@ TEX_PATH=Z:\DataFBX\FFXI
 - **言語**: C++
 - **API**: Windows API, DirectX 9 (d3d9, d3dx9)
 - **開発環境**: Visual Studio (2013以降推奨)
+
+## 利用規約 (License)
+
+本ソフトウェアは、商用利用および再配布を禁止しています。詳細は [LICENSE](LICENSE) ファイルをご確認ください。
+
+© 2026 yisikawa
