@@ -16,25 +16,25 @@
 #pragma comment(lib,"comdlg32.lib")
 
 //======================================================================
-// Shift-JIS文字列をUTF-8文字列に変換する
-// Area.lstやiniファイルはShift-JIS形式のため、
-// ソースコードがUTF-8になった今でもランタイム読み込み時に変換が必要
+// UTF-8文字列をShift-JIS文字列に変換する
+// ソースコードはUTF-8だが、Windowsのマルチバイト(ANSI)APIは
+// システムロケールのShift-JISを期待するため、この変換が必要
 //======================================================================
-static std::string SjisToUtf8(const std::string& sjis) {
-    if (sjis.empty()) return sjis;
-    // Step1: Shift-JIS → UTF-16
-    int wlen = MultiByteToWideChar(932, 0, sjis.c_str(), -1, nullptr, 0);
-    if (wlen <= 0) return sjis; // 変換失敗時はそのまま返す
+std::string Utf8ToSjis(const std::string& utf8) {
+    if (utf8.empty()) return utf8;
+    // Step1: UTF-8 → UTF-16
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
+    if (wlen <= 0) return utf8;
     std::wstring wstr(wlen, L'\0');
-    MultiByteToWideChar(932, 0, sjis.c_str(), -1, &wstr[0], wlen);
-    // Step2: UTF-16 → UTF-8
-    int ulen = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
-    if (ulen <= 0) return sjis;
-    std::string utf8(ulen, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &utf8[0], ulen, nullptr, nullptr);
+    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, &wstr[0], wlen);
+    // Step2: UTF-16 → Shift-JIS(932)
+    int slen = WideCharToMultiByte(932, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (slen <= 0) return utf8;
+    std::string sjis(slen, '\0');
+    WideCharToMultiByte(932, 0, wstr.c_str(), -1, &sjis[0], slen, nullptr, nullptr);
     // 末尾のnull文字を除去
-    if (!utf8.empty() && utf8.back() == '\0') utf8.pop_back();
-    return utf8;
+    if (!sjis.empty() && sjis.back() == '\0') sjis.pop_back();
+    return sjis;
 }
 
 #define LIST_LIMIT 1024
@@ -443,8 +443,8 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 			if (ifs) {
 				std::string line;
 				while (std::getline(ifs, line) && g_ListArea.size() < LIST_LIMIT) {
-					// Area.lstはShift-JIS形式のため、UTF-8に変換して格納する
-					g_ListArea.push_back(SjisToUtf8(line));
+					// Area.lstはShift-JIS形式。CB_INSERTSTRINGはANSI(Shift-JIS)を期待するため変換不要
+					g_ListArea.push_back(line);
 				}
 			}
 		}
@@ -488,7 +488,7 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 					}
 					index = SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETCURSEL, (WORD)0, 0L);
 					SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETTEXT, (WORD)index, (LONG)ww);
-					sscanf(ww, "[%02x] ｷｰﾌﾚｰﾑ (%4s)", &tType,tName);
+					sscanf(ww, U8TOA("[%02x] ｷｰﾌﾚｰﾑ (%4s)"), &tType,tName);
 					switch (tType){
 						case 0x21:
 						case 0x22:

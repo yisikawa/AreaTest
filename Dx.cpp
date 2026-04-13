@@ -28,7 +28,7 @@ bool InitD3D( void )
 	//==============================================================================
 	g_pDirect3D = Direct3DCreate9( D3D_SDK_VERSION );
 	if ( g_pDirect3D == NULL ) {
-		MessageBox( NULL, "Direct3Dの作成に失敗しました", "Error", MB_OK | MB_ICONSTOP );
+		MessageBox( NULL, U8TOA("Direct3Dの作成に失敗しました"), "Error", MB_OK | MB_ICONSTOP );
 		return false;
 	}
 
@@ -37,7 +37,7 @@ bool InitD3D( void )
 	//==============================================================================
 	hr = g_pDirect3D->GetAdapterDisplayMode( D3DADAPTER_DEFAULT, &d3ddm );
 	if FAILED( hr ) {
-		MessageBox( NULL, "画面モードの取得に失敗しました", "Error", MB_OK | MB_ICONSTOP );
+		MessageBox( NULL, U8TOA("画面モードの取得に失敗しました"), "Error", MB_OK | MB_ICONSTOP );
 		return false;
 	}
 
@@ -84,7 +84,7 @@ bool InitD3D( void )
 			if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {
 				// REFERENCE RASTERIZE
 				if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {				
-					MessageBox( NULL,"Direct3Dデバイスの生成に失敗しました", "Error" , MB_OK | MB_ICONSTOP );
+					MessageBox( NULL, U8TOA("Direct3Dデバイスの生成に失敗しました"), "Error" , MB_OK | MB_ICONSTOP );
 					return false;
 				}
 			}
@@ -96,7 +96,7 @@ bool InitD3D( void )
 			if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {
 				// REFERENCE RASTERIZE
 				if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {				
-					MessageBox( NULL,"Direct3Dデバイスの生成に失敗しました", "Error" , MB_OK | MB_ICONSTOP );
+					MessageBox( NULL, U8TOA("Direct3Dデバイスの生成に失敗しました"), "Error" , MB_OK | MB_ICONSTOP );
 					return false;
 				}
 			}

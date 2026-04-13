@@ -16,6 +16,8 @@ HRESULT CreateVB( LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD 
 HRESULT CreateIB( LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage );
 BOOL IsMirrorMatrix(const D3DXMATRIX* pMat);
 D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2);
+// ソースコードがUTF-8のため、ANSI WindowsAPI渡し前にShift-JIS変換が必要
+std::string Utf8ToSjis(const std::string& utf8);
 // DEFINE
 #define SAFE_RELEASE(p)		if ( (p) != NULL ) { (p)->Release(); (p) = NULL; }
 //#define SAFE_DELETES(p)
@@ -540,10 +542,15 @@ CKeyFrame::~CKeyFrame()
 
 void CKeyFrame::outputValue(HWND listObj) {
 	char buf[256];
+	// ソースコードがUTF-8のため、ANSI LB_ADDSTRINGに渡す前にShift-JIS変換する
+	auto addStr = [&](const char* s) {
+		std::string sjis = Utf8ToSjis(s);
+		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)sjis.c_str());
+	};
 
 	for (size_t i = 0; i < m_keys.size(); i++) {
 		sprintf(buf, "[%2d] Key (%5.5f) Value(%5.5f)", (int)i, m_keys[i], m_values[i]);
-		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+		addStr(buf);
 	}
 }
 
@@ -1249,9 +1256,15 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 
 void CEffect::outputProp(HWND listObj) {
 	char buf[256];
+	// ソースコードがUTF-8のため、ANSI LB_ADDSTRINGに渡す前にShift-JIS変換する
+	auto addStr = [&](const char* s) {
+		std::string sjis = Utf8ToSjis(s);
+		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)sjis.c_str());
+	};
 
 	sprintf(buf, "[00] ID (%s) ターゲット(%s) U(%5.5f) V(%5.5f)", m_name.c_str(), m_target.c_str(),m_uv.x,m_uv.y);
-	SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+	addStr(buf);
+
 	for (int i = 0; i < 128; i++) {
 		if (param[i] == false) continue;
 		switch (i) {
@@ -1259,150 +1272,150 @@ void CEffect::outputProp(HWND listObj) {
 				break;
 			case 0x01: // オフセット
 				sprintf(buf,"[%02x] mtype (%02x) kd1(%04x) kd2(%04x) LfT(%04x)", i, m_ModelType, m_kind1, m_kind2, m_lifeTime);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				sprintf(buf, "[%02x] ｵﾌｾｯﾄ (%5.5f,%5.5f,%5.5f)", i, m_p01.x, m_p01.y, m_p01.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x02:
 				sprintf(buf, "[%02x] ｵﾌｾｯﾄ2 (%5.5f,%5.5f,%5.5f)", i, m_p02.x, m_p02.y, m_p02.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x03:
 				sprintf(buf, "[%02x] ｵﾌｾｯﾄ3 (%5.5f,%5.5f,%5.5f)", i, m_p03.x, m_p03.y, m_p03.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x06:
 				sprintf(buf, "[%02x] 2D回転 (%5.5f,%5.5f,%5.5f)", i, m_r06.x, m_r06.y, m_r06.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x08:
 				sprintf(buf, "[%02x] dist (%5.5f)", i, m_08dist);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x09://初期位置
 				sprintf(buf, "[%02x] 回転 (%5.5f,%5.5f,%5.5f)", i, m_r09.x, m_r09.y, m_r09.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x0a://回転
 				sprintf(buf, "[%02x] 回転2 (%5.5f,%5.5f,%5.5f)", i, m_r0A.x, m_r0A.y, m_r0A.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x0b:// 回転差分
 				sprintf(buf, "[%02x] 回転3 (%5.5f,%5.5f,%5.5f)", i, m_r0B.x, m_r0B.y, m_r0B.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x0c:// 回転差分
 				sprintf(buf, "[%02x] 回転4 (%5.5f,%5.5f,%5.5f)", i, m_r0C.x, m_r0C.y, m_r0C.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x0f:// 初期スケール
 				sprintf(buf, "[%02x] ｽｹｰﾙ (%5.5f,%5.5f,%5.5f)", i, m_s0F.x, m_s0F.y, m_s0F.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x10:// スケール差分
 				sprintf(buf, "[%02x] ｽｹｰﾙ2 (%5.5f,%5.5f,%5.5f)", i, m_s10.x, m_s10.y, m_s10.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x11://スケールの揺らぎ
 				sprintf(buf, "[%02x] ｽｹｰﾙ3 (%5.5f,%5.5f,%5.5f)", i, m_s11.x, m_s11.y, m_s11.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x12:// スケール差分
 				sprintf(buf, "[%02x] ｽｹｰﾙ4 (%5.5f,%5.5f,%5.5f)", i, m_s12.x, m_s12.y, m_s12.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x13:// スケール差分
 				sprintf(buf, "[%02x] ｽｹｰﾙ5 (%5.5f,%5.5f,%5.5f)", i, m_s13.x, m_s13.y, m_s13.z);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x16:// 初期カラー
 				sprintf(buf, "[%02x] ｶﾗｰ ( %3d ,%3d ,%3d ,%3d )", i, 
 					(int)(m_color.r*255.f),(int)(m_color.g*255.f),(int)(m_color.b*255.f), (int)(m_color.a*255.f));
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x1E:
 				break;
 			case 0x1F:
 				sprintf(buf, "[%02x] r (%5.5f,%5.5f) s(%5.5f,%5.5f,%5.5f) h(%5.5f,%5.5f) div %d", i, m_r1F.x, m_r1F.y,
 					m_s1F.x, m_s1F.y, m_s1F.z, m_h1F.x, m_h1F.y, m_1fdiv);
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x21:
 				if (m_kfpx == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) px", i, m_kfpx->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x22:
 				if (m_kfpy == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) py", i, m_kfpy->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x23:
 				if (m_kfpz == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) pz", i, m_kfpz->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x24:
 				if (m_kfrx == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) rx", i, m_kfrx->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x25:
 				if (m_kfry == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) ry", i, m_kfry->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x26:
 				if (m_kfrz == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) rz", i, m_kfrz->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x27:
 				if (m_kfsx == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sx", i, m_kfsx->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x28:
 				if (m_kfsy == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sy", i, m_kfsy->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x29:
 				if (m_kfsz == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) sz", i, m_kfsz->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x2D:
 				if (m_Al == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) alph", i, m_Al->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x2E:
 				if (m_kfu == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) u", i, m_kfu->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x2F:
 				if (m_kfv == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) v", i, m_kfv->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x30:
 				break;
 			case 0x60:
 				if (m_Rd == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Rd", i, m_Rd->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x61:
 				if (m_Gr == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Gr", i, m_Gr->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			case 0x62:
 				if (m_Bl == NULL) break;
 				sprintf(buf, "[%02x] ｷｰﾌﾚｰﾑ (%s) Bl", i, m_Bl->m_type.c_str());
-				SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)buf);
+				addStr(buf);
 				break;
 			default:
 				break;
