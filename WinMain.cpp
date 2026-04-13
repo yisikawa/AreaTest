@@ -15,6 +15,28 @@
 
 #pragma comment(lib,"comdlg32.lib")
 
+//======================================================================
+// Shift-JIS文字列をUTF-8文字列に変換する
+// Area.lstやiniファイルはShift-JIS形式のため、
+// ソースコードがUTF-8になった今でもランタイム読み込み時に変換が必要
+//======================================================================
+static std::string SjisToUtf8(const std::string& sjis) {
+    if (sjis.empty()) return sjis;
+    // Step1: Shift-JIS → UTF-16
+    int wlen = MultiByteToWideChar(932, 0, sjis.c_str(), -1, nullptr, 0);
+    if (wlen <= 0) return sjis; // 変換失敗時はそのまま返す
+    std::wstring wstr(wlen, L'\0');
+    MultiByteToWideChar(932, 0, sjis.c_str(), -1, &wstr[0], wlen);
+    // Step2: UTF-16 → UTF-8
+    int ulen = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (ulen <= 0) return sjis;
+    std::string utf8(ulen, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &utf8[0], ulen, nullptr, nullptr);
+    // 末尾のnull文字を除去
+    if (!utf8.empty() && utf8.back() == '\0') utf8.pop_back();
+    return utf8;
+}
+
 #define LIST_LIMIT 1024
 //======================================================================
 // PROTOTYPE
@@ -421,7 +443,8 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM
 			if (ifs) {
 				std::string line;
 				while (std::getline(ifs, line) && g_ListArea.size() < LIST_LIMIT) {
-					g_ListArea.push_back(line);
+					// Area.lstはShift-JIS形式のため、UTF-8に変換して格納する
+					g_ListArea.push_back(SjisToUtf8(line));
 				}
 			}
 		}
