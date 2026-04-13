@@ -32,7 +32,7 @@ static LPDIRECT3D9				g_pDirect3D;
 static LPDIRECT3DDEVICE9		g_pD3DDevice;
 static D3DPRESENT_PARAMETERS	g_md3dpp;
 unsigned long					g_mVertexShaderVersion;
-int								g_mMaxVertexShaderConst = 0; // ’¸“_ƒVƒF[ƒ_[@MAX@Matrix
+int								g_mMaxVertexShaderConst = 0; // é ‚ç‚¹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã€€MAXã€€Matrix
 BOOL							g_mIsUseSoftware = FALSE;
 
 float		g_mTime				=	0.;
@@ -40,14 +40,14 @@ float		g_mTime				=	0.;
 extern	HWND 		hDlg1,hTrack;
 extern	float		g_mDispArea;
 extern	float		g_mDispTree;
-float				g_mFov			= PAI / 4.f;		// FOV : 60“x
-float				g_mAspect		= 1.34f;		// ‰æ–Ê‚ÌƒAƒXƒyƒNƒg”ä
-float				g_mNear_z		= 0.1f;			// Å‹ßÚ‹——£
-float				g_mFar_z		= 1400.0f;		// Å‰“•û‹——£
+float				g_mFov			= PAI / 4.f;		// FOV : 60åº¦
+float				g_mAspect		= 1.34f;		// ç”»é¢ã®ã‚¢ã‚¹ãƒšã‚¯ãƒˆæ¯”
+float				g_mNear_z		= 0.1f;			// æœ€è¿‘æ¥è·é›¢
+float				g_mFar_z		= 1400.0f;		// æœ€é æ–¹è·é›¢
 D3DLIGHT9			g_mLight,g_mLightbase;
 static float		fTime		= 0;
 extern	unsigned long	VertexShaderVersion;
-extern	int				MaxVertexShaderConst; // ’¸“_ƒVƒF[ƒ_[@MAX@Matrix
+extern	int				MaxVertexShaderConst; // é ‚ç‚¹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã€€MAXã€€Matrix
 
 D3DXMATRIX			g_mProjection, g_mView, g_mEyeMat;
 float				g_mEyeScale=1.f,g_mEyeAlph = 0.f,g_mEyeBeta = 0.f;
@@ -55,22 +55,22 @@ float				g_mLightAlph = 0.f,g_mLightBeta = 0.f;
 D3DXVECTOR3			g_mEye,g_mEyebase( 0.0f,	 1.1f, -4.5f);
 D3DXVECTOR3			g_mAt(	0.0f,	 1.1f,	0.0f);
 D3DXVECTOR3			g_mUp(	0.0f,	 1.0f,	0.0f);
-LPDIRECT3DSURFACE9	g_pBackBuffer;					// ƒoƒbƒNƒoƒbƒtƒ@
-LPDIRECT3DSURFACE9	g_pZBuffer;						// Zƒoƒbƒtƒ@
+LPDIRECT3DSURFACE9	g_pBackBuffer;					// ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡
+LPDIRECT3DSURFACE9	g_pZBuffer;						// Zãƒãƒƒãƒ•ã‚¡
 float				g_mLightDist = 1.5f;
 D3DXVECTOR3			g_mLightPosition(0.f,0.f,0.f);
-D3DXMATRIX			g_mViewLight;					// ƒ‰ƒCƒg‚©‚çŒ©‚½ê‡‚Ìƒrƒ…[ƒ}ƒgƒŠƒbƒNƒX
+D3DXMATRIX			g_mViewLight;					// ãƒ©ã‚¤ãƒˆã‹ã‚‰è¦‹ãŸå ´åˆã®ãƒ“ãƒ¥ãƒ¼ãƒãƒˆãƒªãƒƒã‚¯ã‚¹
 
 extern	long g_mScreenWidth;
 extern	long g_mScreenHeight;
 //======================================================================
-//		ŠeíŠÖ”
+//		å„ç¨®é–¢æ•°
 //======================================================================
 LPDIRECT3DDEVICE9 GetDevice(void) { return g_pD3DDevice; }
 D3DPRESENT_PARAMETERS *GetAdapter(void) { return &g_md3dpp; }
 unsigned long GetVertexShaderVersion(void) { return g_mVertexShaderVersion; }
 //======================================================================
-//		DirectXGraphics‰Šú‰»
+//		DirectXGraphicsåˆæœŸåŒ–
 //======================================================================
 bool InitD3D(void)
 {
@@ -78,7 +78,7 @@ bool InitD3D(void)
 	D3DDISPLAYMODE d3ddm;
 
 	//==============================================================================
-	// Direct3D ƒIƒuƒWƒFƒNƒg‚ğì¬
+	// Direct3D ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ä½œæˆ
 	//==============================================================================
 	g_pDirect3D = Direct3DCreate9(D3D_SDK_VERSION);
 	if (g_pDirect3D == NULL) {
@@ -87,7 +87,7 @@ bool InitD3D(void)
 	}
 
 	//==============================================================================
-	// Œ»İ‚Ì‰æ–Êƒ‚[ƒh‚ğæ“¾
+	// ç¾åœ¨ã®ç”»é¢ãƒ¢ãƒ¼ãƒ‰ã‚’å–å¾—
 	//==============================================================================
 	hr = g_pDirect3D->GetAdapterDisplayMode(D3DADAPTER_DEFAULT, &d3ddm);
 	if FAILED(hr) {
@@ -96,7 +96,7 @@ bool InitD3D(void)
 	}
 
 	//==============================================================================
-	// Direct3D ‰Šú‰»ƒpƒ‰ƒ[ƒ^‚Ìİ’è
+	// Direct3D åˆæœŸåŒ–ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã®è¨­å®š
 	//==============================================================================
 	ZeroMemory(&g_md3dpp, sizeof(D3DPRESENT_PARAMETERS));
 
@@ -105,7 +105,7 @@ bool InitD3D(void)
 	g_md3dpp.BackBufferWidth = GetScreenWidth();
 	g_md3dpp.BackBufferHeight = GetScreenHeight();
 
-	// ƒEƒCƒ“ƒhƒE : Œ»İ‚Ì‰æ–Êƒ‚[ƒh‚ğg—p
+	// ã‚¦ã‚¤ãƒ³ãƒ‰ã‚¦ : ç¾åœ¨ã®ç”»é¢ãƒ¢ãƒ¼ãƒ‰ã‚’ä½¿ç”¨
 	g_md3dpp.BackBufferFormat = d3ddm.Format;
 	g_md3dpp.MultiSampleType = D3DMULTISAMPLE_NONE;
 	g_md3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
@@ -113,13 +113,13 @@ bool InitD3D(void)
 	g_md3dpp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
 	g_md3dpp.hDeviceWindow = GetWindow();
 
-	// Z ƒoƒbƒtƒ@‚Ì©“®ì¬
+	// Z ãƒãƒƒãƒ•ã‚¡ã®è‡ªå‹•ä½œæˆ
 	g_md3dpp.EnableAutoDepthStencil = TRUE;
 	g_md3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;
-	g_md3dpp.Flags = D3DPRESENTFLAG_DISCARD_DEPTHSTENCIL;//ƒ_ƒuƒ‹ƒXƒeƒ“ƒVƒ‹
+	g_md3dpp.Flags = D3DPRESENTFLAG_DISCARD_DEPTHSTENCIL;//ãƒ€ãƒ–ãƒ«ã‚¹ãƒ†ãƒ³ã‚·ãƒ«
 
 	//==============================================================================
-	// ƒVƒF[ƒ_[ƒo[ƒWƒ‡ƒ“æ“¾
+	// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒãƒ¼ã‚¸ãƒ§ãƒ³å–å¾—
 	//==============================================================================
 	D3DCAPS9 caps;
 	g_pDirect3D->GetDeviceCaps(0, D3DDEVTYPE_HAL, &caps);
@@ -127,10 +127,10 @@ bool InitD3D(void)
 	g_mMaxVertexShaderConst = caps.MaxVertexShaderConst;
 
 	//==============================================================================
-	// ƒfƒoƒCƒX‚Ì¶¬
+	// ãƒ‡ãƒã‚¤ã‚¹ã®ç”Ÿæˆ
 	//==============================================================================
 
-	// ’¸“_ƒVƒF[ƒ_[1.1H
+	// é ‚ç‚¹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼1.1ï¼Ÿ
 	if (g_mVertexShaderVersion >= D3DVS_VERSION(1, 1)) {
 		// HARDWARE T&L
 		if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_HARDWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
@@ -162,7 +162,7 @@ bool InitD3D(void)
 }
 
 //======================================================================
-//		DirectXGraphicsŠJ•ú
+//		DirectXGraphicsé–‹æ”¾
 //======================================================================
 void ReleaseD3D(void)
 {
@@ -172,7 +172,7 @@ void ReleaseD3D(void)
 
 
 //======================================================================
-//		’¸“_ƒoƒbƒtƒ@¶¬
+//		é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ç”Ÿæˆ
 //======================================================================
 HRESULT CreateVB(LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD fvf)
 {
@@ -186,7 +186,7 @@ HRESULT CreateVB(LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD f
 }
 
 //======================================================================
-//		ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@¶¬
+//		ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ç”Ÿæˆ
 //======================================================================
 HRESULT CreateIB(LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage)
 {
@@ -200,7 +200,7 @@ HRESULT CreateIB(LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage)
 }
 
 //======================================================================
-//		ƒŒƒ“ƒ_ƒŠƒ“ƒO
+//		ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°
 //======================================================================
 void Rendering( void )
 {
@@ -212,13 +212,13 @@ void Rendering( void )
 	OldTime = NowTime;
 //	g_mTime += fTime*g_mMotionSpeed;
 
-	// •ÏŠ·“K—piˆø”‚ÍƒAƒjƒŠÔ
+	// å¤‰æ›é©ç”¨ï¼ˆå¼•æ•°ã¯ã‚¢ãƒ‹ãƒ¡æ™‚é–“
 
 	//-----------------------------------------------
-	// ƒŒƒ“ƒ_ƒŠƒ“ƒO
+	// ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°
 	//-----------------------------------------------
 	unsigned long poly = 0;
-	//	ƒ‰ƒCƒgˆÊ’u‚ÌŒvZ
+	//	ãƒ©ã‚¤ãƒˆä½ç½®ã®è¨ˆç®—
 	g_mLightPosition = g_mAt+g_mLightDist*-(D3DXVECTOR3)g_mLight.Direction;
 	D3DXMatrixLookAtLH( &g_mViewLight,&g_mLightPosition,&g_mAt,&g_mUp);
 
@@ -227,36 +227,36 @@ void Rendering( void )
 }
 
 //======================================================================
-//		3D‹óŠÔ‚Ì¶¬
+//		3Dç©ºé–“ã®ç”Ÿæˆ
 //======================================================================
 bool Create3DSpace( void )
 {
 	HRESULT	hr;
 	//===========================================================
-	// ƒoƒbƒNƒoƒbƒtƒ@æ“¾
+	// ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡å–å¾—
 	//===========================================================
 	hr = GetDevice()->GetRenderTarget( 0,&g_pBackBuffer );
 	if FAILED( hr ) return false;
 
 	//===========================================================
-	// Zƒoƒbƒtƒ@¶¬
+	// Zãƒãƒƒãƒ•ã‚¡ç”Ÿæˆ
 	//===========================================================
 	hr = GetDevice()->GetDepthStencilSurface( &g_pZBuffer );
 	if FAILED( hr ) return false;
 
 	//===========================================================
-	// ƒvƒƒWƒFƒNƒVƒ‡ƒ“s—ñ‚Ìİ’è
+	// ãƒ—ãƒ­ã‚¸ã‚§ã‚¯ã‚·ãƒ§ãƒ³è¡Œåˆ—ã®è¨­å®š
 	//===========================================================
-	// s—ñ¶¬
+	// è¡Œåˆ—ç”Ÿæˆ
 	D3DXMatrixPerspectiveFovLH( &g_mProjection, g_mFov, g_mAspect, g_mNear_z, g_mFar_z );
 
 	//===========================================================
-	// ƒfƒtƒHƒ‹ƒg‚ÌƒJƒƒ‰‚Ìİ’è
+	// ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã®ã‚«ãƒ¡ãƒ©ã®è¨­å®š
 	//===========================================================
 	D3DXMatrixIdentity(&g_mEyeMat);
 	D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
 	//=================================================
-	// ƒŒƒ“ƒ_ƒŠƒ“ƒOƒXƒe[ƒg
+	// ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ã‚¹ãƒ†ãƒ¼ãƒˆ
 	//=================================================
 	float	start	 = 0.0f;
 	float	end		 = 1.0f;
@@ -269,7 +269,7 @@ bool Create3DSpace( void )
 	GetDevice()->SetRenderState( D3DRS_FOGSTART,			*(DWORD*)(&start) );
 	GetDevice()->SetRenderState( D3DRS_FOGEND,				*(DWORD*)(&end) );
 	//=================================================
-	// ƒ‰ƒCƒg
+	// ãƒ©ã‚¤ãƒˆ
 	//=================================================
 	memset( &g_mLight, 0x00, sizeof(D3DLIGHT9) );
 	memset( &g_mLightbase, 0x00, sizeof(D3DLIGHT9) );
@@ -292,7 +292,7 @@ bool Create3DSpace( void )
 	GetDevice()->LightEnable( 0, TRUE );
 
 	//===========================================================
-	// ƒ‰ƒCƒg•ûŒü‚ÌƒJƒƒ‰‚Ìİ’è
+	// ãƒ©ã‚¤ãƒˆæ–¹å‘ã®ã‚«ãƒ¡ãƒ©ã®è¨­å®š
 	//===========================================================
 
 	g_mLightPosition = g_mAt+g_mLightDist*-(D3DXVECTOR3)g_mLight.Direction;
@@ -301,7 +301,7 @@ bool Create3DSpace( void )
 }
 
 //======================================================================
-//		‰Šú‰»
+//		åˆæœŸåŒ–
 //======================================================================
 bool InitRender( void )
 {
@@ -310,7 +310,7 @@ bool InitRender( void )
 	int				w1,w2,w3;
 	char			ww[128];
 	//--------------------------------------------------
-	// ‰Šúİ’è
+	// åˆæœŸè¨­å®š
 	//--------------------------------------------------
 	if ( !Create3DSpace() )
 	{
@@ -318,21 +318,21 @@ bool InitRender( void )
 		return false;
 	}
 	//--------------------------------------------------
-	// ƒ‚ƒfƒ‹ƒf[ƒ^“Ç‚İ‚İi’¸“_ƒtƒH[ƒ}ƒbƒg‚ğw’è
+	// ãƒ¢ãƒ‡ãƒ«ãƒ‡ãƒ¼ã‚¿èª­ã¿è¾¼ã¿ï¼ˆé ‚ç‚¹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã‚’æŒ‡å®š
 	//--------------------------------------------------
 	// unsigned long ModelFVF = (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_TEX1);
-	// MAP İ’è
+	// MAP è¨­å®š
 	GetWindowText(GetDlgItem(hDlg1, IDC_COMBO1), ComboString, sizeof(ComboString));
 	sscanf(ComboString,"%d-%d-%d,%s",&w1,&w2,&w3,ww);
 	g_mArea.SetArea( ConvertStr2Dno2(ComboString) );
-	// MAP ‰Šúİ’è
+	// MAP åˆæœŸè¨­å®š
 	if( !g_mArea.LoadMAP() ) return false;
 	g_mArea.CreateVertexShader();
 	return true;
 }
 
 //======================================================================
-//		ŠJ•ú
+//		é–‹æ”¾
 //======================================================================
 void UnInitRender( void )
 {

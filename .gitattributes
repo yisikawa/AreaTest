@@ -1,0 +1,30 @@
+# Git属性設定 - エンコーディングとDiff設定
+# テキストファイルの改行コードをCRLFに統一（Windows）
+* text=auto eol=crlf
+
+# ソースコード - UTF-8として扱う
+*.cpp text eol=crlf diff=cpp
+*.h text eol=crlf diff=cpp
+*.fx text eol=crlf
+
+# リソースファイル
+*.rc text eol=crlf
+
+# プロジェクトファイル
+*.sln text eol=crlf
+*.vcxproj text eol=crlf
+*.vcxproj.filters text eol=crlf
+
+# ドキュメント
+*.md text eol=crlf diff=markdown
+
+# バイナリファイル（変換しない）
+*.ico binary
+*.exe binary
+*.dll binary
+*.lib binary
+*.obj binary
+*.pdb binary
+*.sdf binary
+*.suo binary
+*.aps binary

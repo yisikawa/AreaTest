@@ -1,4 +1,4 @@
-// Microsoft Visual C++ generated resource script.
+ï»¿// Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
 
@@ -92,7 +92,7 @@ END
 IDD_DIALOG1 DIALOGEX 5, 25, 292, 298
 STYLE DS_SETFONT | DS_MODALFRAME | DS_SETFOREGROUND | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Area Select Window"
-FONT 8, "‚l‚r ‚oƒSƒVƒbƒN", 400, 0, 0x80
+FONT 8, "ï¼­ï¼³ ï¼°ã‚´ã‚·ãƒƒã‚¯", 400, 0, 0x80
 BEGIN
     COMBOBOX        IDC_COMBO1,36,12,248,243,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     COMBOBOX        IDC_COMBO2,36,28,110,243,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
