@@ -16,8 +16,6 @@ HRESULT CreateVB( LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD 
 HRESULT CreateIB( LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage );
 BOOL IsMirrorMatrix(const D3DXMATRIX* pMat);
 D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2);
-// ソースコードがUTF-8のため、ANSI WindowsAPI渡し前にShift-JIS変換が必要
-std::string Utf8ToSjis(const std::string& utf8);
 // DEFINE
 #define SAFE_RELEASE(p)		if ( (p) != NULL ) { (p)->Release(); (p) = NULL; }
 //#define SAFE_DELETES(p)
@@ -542,10 +540,9 @@ CKeyFrame::~CKeyFrame()
 
 void CKeyFrame::outputValue(HWND listObj) {
 	char buf[256];
-	// ソースコードがUTF-8のため、ANSI LB_ADDSTRINGに渡す前にShift-JIS変換する
+	// ソースコードがUTF-8で、マニフェストによってANSI APIもUTF-8を受け付ける
 	auto addStr = [&](const char* s) {
-		std::string sjis = Utf8ToSjis(s);
-		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)sjis.c_str());
+		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)s);
 	};
 
 	for (size_t i = 0; i < m_keys.size(); i++) {
@@ -1256,10 +1253,9 @@ void CEffect::GetEffectMatrix(char *pBuff, CKeyFrame *pKeyFrame)
 
 void CEffect::outputProp(HWND listObj) {
 	char buf[256];
-	// ソースコードがUTF-8のため、ANSI LB_ADDSTRINGに渡す前にShift-JIS変換する
+	// ソースコードがUTF-8で、マニフェストによってANSI APIもUTF-8を受け付ける
 	auto addStr = [&](const char* s) {
-		std::string sjis = Utf8ToSjis(s);
-		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)sjis.c_str());
+		SendMessage(listObj, LB_ADDSTRING, 0, (LPARAM)s);
 	};
 
 	sprintf(buf, "[00] ID (%s) ターゲット(%s) U(%5.5f) V(%5.5f)", m_name.c_str(), m_target.c_str(),m_uv.x,m_uv.y);
