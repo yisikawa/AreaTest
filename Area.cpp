@@ -2588,9 +2588,9 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 		char	texName[256];
 		strcpy(texName, pTexture->GetTexName()); Trim(texName);
 		fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
-		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.bmp\")\n", texName);
-		sprintf(texpath, "%s%s.bmp", FPath, texName);
-		D3DXSaveTextureToFile(texpath, D3DXIFF_BMP, pTexture->GetTexture(), NULL);
+		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.png\")\n", texName);
+		sprintf(texpath, "%s%s.png", FPath, texName);
+		D3DXSaveTextureToFile(texpath, D3DXIFF_PNG, pTexture->GetTexture(), NULL);
 		pTexture = (CTexture*)pTexture->Next;
 		texNo++;
 	}
@@ -2818,9 +2818,9 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 		char	texName[256];
 		strcpy(texName, pTexture->GetTexName()); Trim(texName);
 		fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
-		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.bmp\")\n", texName);
-		sprintf(texpath, "%s%s.bmp", FPath, texName);
-		D3DXSaveTextureToFile(texpath, D3DXIFF_BMP, pTexture->GetTexture(), NULL);
+		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.png\")\n", texName);
+		sprintf(texpath, "%s%s.png", FPath, texName);
+		D3DXSaveTextureToFile(texpath, D3DXIFF_PNG, pTexture->GetTexture(), NULL);
 		pTexture = (CTexture*)pTexture->Next;
 		texNo++;
 	}
@@ -2997,9 +2997,9 @@ bool CArea::saveMQO3(char *FPath, char *FName){
 		if (pTexture == NULL) continue;
 		strcpy(texName, pTexture->m_TexName.c_str()); Trim(texName);
 		fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
-		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.bmp\")\n", texName);
-		sprintf(texpath, "%s%s.bmp", FPath, texName);
-		D3DXSaveTextureToFile(texpath, D3DXIFF_BMP, pTexture->GetTexture(), NULL);
+		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.png\")\n", texName);
+		sprintf(texpath, "%s%s.png", FPath, texName);
+		D3DXSaveTextureToFile(texpath, D3DXIFF_PNG, pTexture->GetTexture(), NULL);
 		pTexture = (CTexture*)pTexture->Next;
 	}
 	fprintf(fd, "}\n");
