@@ -18,8 +18,3 @@ bool convert_path(char* src, const char* base);
 // 行列・3D演算
 BOOL IsMirrorMatrix(const D3DXMATRIX* pMat);
 D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2);
-
-// デコード処理
-void DecodeMMB(BYTE* p);
-void DecodeMMBSub(BYTE* p);
-void DecodeMZB(BYTE* p);

@@ -7,6 +7,7 @@
 #include "Render.h"
 #include "Area.h"
 #include <list>
+#include "Utils.h"
 
 using namespace std;
 // Function
@@ -15,7 +16,6 @@ DWORD	ConvertStr2Dno( char* DataName );
 HRESULT CreateVB( LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD fvf );
 HRESULT CreateIB( LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage );
 BOOL IsMirrorMatrix(const D3DXMATRIX* pMat);
-D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2);
 // DEFINE
 #define SAFE_RELEASE(p)		if ( (p) != NULL ) { (p)->Release(); (p) = NULL; }
 //#define SAFE_DELETES(p)
@@ -43,34 +43,6 @@ extern	D3DXMATRIX	g_mViewLight;					// ライトから見た場合のビュー�
 extern	char		g_className[];
 extern	char		g_meshPath[];
 extern	char		g_texPath[];
-
-int Trim(char *s) {
-	if (s == NULL) return -1;
-	std::string str(s);
-	size_t start = str.find_first_not_of(' ');
-	if (start == std::string::npos) {
-		s[0] = '\0';
-		return 0;
-	}
-	size_t end = str.find_last_not_of(' ');
-	str = str.substr(start, end - start + 1);
-	strcpy(s, str.c_str());
-	return str.length();
-}
-
-char * // 文字列へのポインタ
-strrstr
-(
-const char *string, // 検索対象文字列
-const char *pattern // 検索する文字列
-)
-{
-	if (!string || !pattern) return NULL;
-	std::string s(string);
-	size_t pos = s.rfind(pattern);
-	if (pos == std::string::npos) return NULL;
-	return (char*)(string + pos);
-}//strrstr
 
 
 // 頂点フォーマット
@@ -221,29 +193,6 @@ static char *pVertexShaders[3] =
 		"mov	oD0,		v2							; alpha = model diffuse.a	\n"
 	},
 };
-
-
-float Min4( float v1, float v2, float v3, float v4 )
-{
-	float val = (std::min)(v1, v2);
-	val = (std::min)(val, v3);
-	return (std::min)(val, v4);
-}
-
-float Max4( float v1, float v2, float v3, float v4 )
-{
-	float val = (std::max)(v1, v2);
-	val = (std::max)(val, v3);
-	return (std::max)(val, v4);
-}
-
-float Max5( float v1, float v2, float v3, float v4,float v5 )
-{
-	float val = (std::max)(v1, v2);
-	val = (std::max)(val, v3);
-	val = (std::max)(val, v4);
-	return (std::max)(val, v5);
-}
 
 //		コンストラクタ
 CStream::CStream()
@@ -1701,23 +1650,6 @@ void	CArea::InitData(void)
 	m_nObj			= 0;
 }
 
-bool convert_path(char* src,const char* base) {
-	// 検索の目印となる文字列（ゲームのデータフォルダ名）
-	static const char* search_term = "ROM";
-	// 新しいベースディレクトリ
-	static const char* new_base = base;
-	// "ROM\" が出現する位置を検索
-	const char* relative_path = strstr(src, search_term);
-	if (relative_path != NULL) {
-		// 新しいベースパスと相対パスを結合
-		// snprintfを使うことでバッファオーバーフローを防ぎつつ結合可能です
-		snprintf(src, strlen(src), "%s%s", new_base, relative_path);
-		return true;
-	}
-	else {
-		return false;
-	}
-}
 
 //		テクスチャの読み込み
 HRESULT CArea::LoadTextureFromFile( char *FileName  )
@@ -2523,27 +2455,6 @@ bool CArea::LoadMAP()
 	return true;
 }
 
-// ミラー判定
-BOOL IsMirrorMatrix(const D3DXMATRIX* pMat) {
-	// 行列式を計算
-	FLOAT det = D3DXMatrixDeterminant(pMat);
-	// 行列式が負であれば反転（ミラー）が含まれている
-	return (det < 0.0f);
-}
-
-// 代替関数
-D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2) {
-	D3DXVECTOR3 edge1 = *pV1 - *pV0;
-	D3DXVECTOR3 edge2 = *pV2 - *pV0;
-
-	// 外積（Cross Product）を計算
-	D3DXVec3Cross(pOut, &edge1, &edge2);
-
-	// 長さを1に正規化（Normalize）
-	D3DXVec3Normalize(pOut, pOut);
-
-	return pOut;
-}
 
 //======================================================================
 //		MQOセーブ		通常データをMQOフォーマットで出力します
@@ -2687,17 +2598,8 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 						else {
 							t1 = i1; t2 = i2; t3 = i3;
 						}
-						//ComputeFaceNormal(&normF, &((pV + idxmin + t1)->v),&((pV + idxmin + t2)->v),&((pV + idxmin + t3)->v));
-						//D3DXVec3Normalize(&normV1, &(pV + idxmin + t1)->n);
-						//D3DXVec3Normalize(&normV2, &(pV + idxmin + t2)->n);
-						//D3DXVec3Normalize(&normV3, &(pV + idxmin + t3)->n);
-						//D3DXVec3TransformNormal(&normV1, &normV1, &AreaMatrix);
-						//D3DXVec3TransformNormal(&normV2, &normV2, &AreaMatrix);
-						//D3DXVec3TransformNormal(&normV3, &normV3, &AreaMatrix);
+
 						if(IsMirrorMatrix(&AreaMatrix)) {
-						//if (D3DXVec3Dot(&normF, &normV1) < 0 ||
-						//	D3DXVec3Dot(&normF, &normV2) < 0 ||
-						//	D3DXVec3Dot(&normF, &normV3) < 0 ) {
 							fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
 								t1, t2, t3, its2->m_TexNo,
 								(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
@@ -2737,17 +2639,7 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 				for (unsigned int i = 0; i<its2->GetFaceCount(); i++) {
 					i1 = (*pI++)-idxmin; i2 = (*pI++)-idxmin; i3 = (*pI++)-idxmin;
 					t1 = i3; t2 = i2; t3 = i1;
-					//ComputeFaceNormal(&normF, &((pV + idxmin + t1)->v), &((pV + idxmin + t2)->v), &((pV + idxmin + t3)->v));
-					//D3DXVec3Normalize(&normV1, &(pV + idxmin + t1)->n);
-					//D3DXVec3Normalize(&normV2, &(pV + idxmin + t2)->n);
-					//D3DXVec3Normalize(&normV3, &(pV + idxmin + t3)->n);
-					//D3DXVec3TransformNormal(&normV1, &normV1, &AreaMatrix);
-					//D3DXVec3TransformNormal(&normV2, &normV2, &AreaMatrix);
-					//D3DXVec3TransformNormal(&normV3, &normV3, &AreaMatrix);
 					if (IsMirrorMatrix(&AreaMatrix)) {
-					//if (D3DXVec3Dot(&normF, &normV1) < 0 ||
-					//	D3DXVec3Dot(&normF, &normV2) < 0 ||
-					//	D3DXVec3Dot(&normF, &normV3) < 0 ) {
 						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
 							t1, t2, t3, its2->m_TexNo,
 							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
