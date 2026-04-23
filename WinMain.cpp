@@ -403,10 +403,9 @@ int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
 //　モーションスピード　イベント処理
 LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message,WPARAM in_wParam, LPARAM in_lParam )
 { 
-	FILE			*fd;
 	D3DXVECTOR3		Pos,Post,DPos,Dview;
 	int				i,tType,ComboNo;
-	char			ListName[256],ComboString[256];
+	char			ComboString[256];
 	int				index,w1,w2,w3;
 	char			tName[6],tClass[6],ww[512];
 	CEffect			*pEffect;

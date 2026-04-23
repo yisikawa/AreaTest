@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include "Utils.h"
 #include <string>
 #include <algorithm>
