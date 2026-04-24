@@ -1075,32 +1075,19 @@ bool CArea::LoadMAP()
 
 
 //======================================================================
-//		MQOセーブ		通常データをMQOフォーマットで出力します
+//		MQOセーブ共通ヘルパー
 //======================================================================
-bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
-{
-	FILE			*fd;
-	char			*ptr, path[256],texpath[256];
-	D3DTEXVERTEX	*pV;
-	D3DTEXVERTEX	mVertex;
-	D3DXVECTOR3     mVer,normF,normV1,normV2,normV3;
-	WORD			*pIndex, *pI;
-	int				cnt,nVer, nFace,idxmin,idxmax;
-	int				i1, i2, i3, t1, t2, t3;
-	CAreaMesh		*pAreaMesh;
-	D3DXMATRIX		RootMatrix,AreaMatrix;
-	float			DispArea;
-	D3DXVECTOR3		BL, BL2, BL3, BL4, BH, BH2, BH3, BH4;
+void CArea::PrepareMQOPath(char* path, char* dirPath, const char* FPath, const char* FName) {
+	char* ptr;
+	char tempFName[256];
+	strcpy(dirPath, FPath);
+	strcpy(tempFName, FName);
+	if ((ptr = strrstr(dirPath, tempFName))) *ptr = '\0';
+	if ((ptr = strrstr(tempFName, ".mqo"))) *ptr = '\0';
+	sprintf(path, "%s%s.mqo", dirPath, tempFName);
+}
 
-	D3DXMatrixRotationZ(&RootMatrix, PAI);
-	if ((ptr = strrstr(FPath, FName))) *ptr = '\0';
-	if ((ptr = strrstr(FName, ".mqo"))) *ptr = '\0';
-	sprintf(path, "%s%s.mqo", FPath, FName);
-	HANDLE hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
-	if (hFile != INVALID_HANDLE_VALUE) {
-		CloseHandle(hFile);
-	}
-	if ((fd = fopen(path, "w")) == NULL) return false;
+void CArea::WriteMQOHeader(FILE* fd, CList& textures, const char* dirPath, bool isEffectModel) {
 	fprintf(fd, "Metasequoia Document\nFormat Text Ver 1.0\n\nScene {\n");
 	fprintf(fd, "	pos 0.0000 0.0000 5000.0000\n");
 	fprintf(fd, "	lookat 0.0000 0.0000 0.0000\n");
@@ -1109,176 +1096,222 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 	fprintf(fd, "	ortho 1\n");
 	fprintf(fd, "	zoom2 2.0000\n");
 	fprintf(fd, "	amb 0.250 0.250 0.250\n}\nMaterial ");
-	fprintf(fd, "%d {\n", m_Textures.Count);
-	CTexture *pTexture = (CTexture*)m_Textures.Top();
-	int texNo = 0;
+	fprintf(fd, "%d {\n", textures.Count);
+	CTexture* pTexture = (CTexture*)textures.Top();
 	while (pTexture != NULL) {
-		if (pTexture == NULL) continue;
-		char	texName[256];
-		strcpy(texName, pTexture->GetTexName()); Trim(texName);
-		fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
+		char texName[256];
+		char texpath[256];
+		if (isEffectModel) {
+			strcpy(texName, pTexture->m_TexName.c_str());
+		} else {
+			strcpy(texName, pTexture->GetTexName());
+		}
+		Trim(texName);
+		if (isEffectModel) {
+			fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
+		} else {
+			fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
+		}
 		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.png\")\n", texName);
-		sprintf(texpath, "%s%s.png", FPath, texName);
+		sprintf(texpath, "%s%s.png", dirPath, texName);
 		D3DXSaveTextureToFile(texpath, D3DXIFF_PNG, pTexture->GetTexture(), NULL);
 		pTexture = (CTexture*)pTexture->Next;
-		texNo++;
 	}
 	fprintf(fd, "}\n");
+}
+
+void CArea::WriteMQOAreaMesh(FILE* fd, CAreaMesh* pAreaMesh, const D3DXMATRIX& AreaMatrix, bool useMirrorLogic, bool isEffect) {
+	char areaNameBuf[18];
+	strncpy(areaNameBuf, pAreaMesh->m_AreaName.c_str(), 17);
+	areaNameBuf[17] = '\0';
+	char* ptr = areaNameBuf;
+	for (int i = 0; i < 18; i++) {
+		if (*ptr++ == 0x20) *(ptr - 1) = 0x0;
+	}
+
+	D3DTEXVERTEX* pV;
+	WORD* pIndex, *pI;
+	pAreaMesh->m_lpVB->Lock(0, pAreaMesh->m_VBSize, (void**)&pV, D3DLOCK_READONLY);
+	pAreaMesh->m_lpIB->Lock(0, pAreaMesh->m_IBSize, (void**)&pIndex, D3DLOCK_READONLY);
+
+	list<CStream>::iterator its2 = pAreaMesh->m_LStreams.begin();
+	list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
+	for (int count = 0; its2 != ite2; its2++, count++) {
+		fprintf(fd, "Object \"%s%02d\" {\n", areaNameBuf, count);
+		fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
+		pI = pIndex + its2->GetIndexStart();
+		int idxmin = 65535, idxmax = 0;
+		for (unsigned int i = 0; i < its2->GetFaceCount() + 2; i++) {
+			WORD i1 = *pI++;
+			if (i1 > idxmax) idxmax = i1;
+			if (i1 < idxmin) idxmin = i1;
+		}
+		fprintf(fd, "vertex %d {\n", idxmax - idxmin + 1);
+		for (unsigned long verCnt = idxmin; verCnt <= idxmax; verCnt++) {
+			D3DXVECTOR3 mVer = (pV + verCnt)->v;
+			D3DXVec3TransformCoord(&mVer, &mVer, &AreaMatrix);
+			if (isEffect) {
+				fprintf(fd, "        %4.4f %4.4f %4.4f\n", mVer.x * 10., mVer.y * 10., mVer.z * 10.);
+			} else {
+				fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x * 10., mVer.y * 10., mVer.z * 10.);
+			}
+		}
+		fprintf(fd, "\t}\n");
+
+		if (its2->GetPrimitiveType() == D3DPT_TRIANGLESTRIP) {
+			pI = pIndex + its2->GetIndexStart();
+			int nFace = 0;
+			for (int nVer = 0; nVer < its2->GetFaceCount() + 2;) {
+				int i1 = *pI++ - idxmin; nVer++;
+				int i2 = *pI++ - idxmin; nVer++;
+				while (nVer < its2->GetFaceCount() + 2) {
+					int i3 = *pI++ - idxmin; nVer++;
+					if (i2 == i3) { pI++; nVer++; break; }
+					nFace++; i1 = i2; i2 = i3;
+				}
+			}
+			fprintf(fd, "face %d {\n", nFace);
+			pI = pIndex + its2->GetIndexStart();
+			for (int nVer = 0; nVer < its2->GetFaceCount() + 2;) {
+				int i1 = (*pI++) - idxmin; nVer++;
+				int i2 = (*pI++) - idxmin; nVer++;
+				while (nVer < its2->GetFaceCount() + 2) {
+					int i3 = (*pI++) - idxmin; nVer++;
+					if (i2 == i3) { pI++; nVer++; break; }
+					int t1, t2, t3;
+					if (nVer % 2) { t1 = i3; t2 = i2; t3 = i1; }
+					else { t1 = i1; t2 = i2; t3 = i3; }
+
+					if (useMirrorLogic && IsMirrorMatrix(&AreaMatrix)) {
+						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+							t1, t2, t3, its2->m_TexNo,
+							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
+							(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
+					} else if (useMirrorLogic) {
+						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+							t1, t3, t2, its2->m_TexNo,
+							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t3)->tu,
+							(pV + idxmin + t3)->tv, (pV + idxmin + t2)->tu, (pV + idxmin + t2)->tv);
+					} else {
+						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+							t1, t2, t3, its2->m_TexNo,
+							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
+							(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
+					}
+					i1 = i2; i2 = i3;
+				}
+			}
+			fprintf(fd, "\t}\n");
+		} else if (its2->GetPrimitiveType() == D3DPT_TRIANGLELIST) {
+			fprintf(fd, "face %d {\n", its2->GetFaceCount());
+			pI = pIndex + its2->GetIndexStart();
+			for (unsigned int i = 0; i < its2->GetFaceCount(); i++) {
+				int i1 = (*pI++) - idxmin; int i2 = (*pI++) - idxmin; int i3 = (*pI++) - idxmin;
+				int t1 = i3, t2 = i2, t3 = i1;
+				if (useMirrorLogic && IsMirrorMatrix(&AreaMatrix)) {
+					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+						t1, t2, t3, its2->m_TexNo,
+						(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
+						(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
+				} else if (useMirrorLogic) {
+					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+						t1, t3, t2, its2->m_TexNo,
+						(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t3)->tu,
+						(pV + idxmin + t3)->tv, (pV + idxmin + t2)->tu, (pV + idxmin + t2)->tv);
+				} else {
+					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+						t1, t2, t3, its2->m_TexNo,
+						(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
+						(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
+				}
+			}
+			fprintf(fd, "\t}\n");
+		}
+		fprintf(fd, "}\n");
+	}
+	pAreaMesh->m_lpIB->Unlock();
+	pAreaMesh->m_lpVB->Unlock();
+}
+
+void CArea::WriteMQOEffectModel(FILE* fd, CEffectModel* pEffMdl, const D3DXMATRIX& EffectMatrix) {
+	char objName[256];
+	strcpy(objName, pEffMdl->m_Name.c_str()); Trim(objName);
+	fprintf(fd, "Object \"%s\" {\n", objName);
+	fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
+
+	EFFECTVERTEX* pVertex, *pV;
+	WORD* pIndex, *pI;
+	pEffMdl->m_lpVB->Lock(0, pEffMdl->m_VBSize, (void**)&pVertex, D3DLOCK_READONLY);
+	pEffMdl->m_lpIB->Lock(0, pEffMdl->m_IBSize, (void**)&pIndex, D3DLOCK_READONLY);
+
+	fprintf(fd, "vertex %d {\n", pEffMdl->m_NumVertices);
+	pV = pVertex;
+	for (int i = 0; i <= pEffMdl->m_NumVertices; i++, pV++) {
+		D3DXVECTOR3 mVer(pV->x, pV->y, pV->z);
+		D3DXVec3TransformCoord(&mVer, &mVer, &EffectMatrix);
+		fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x * 10., mVer.y * 10., mVer.z * 10.);
+	}
+	fprintf(fd, "\t}\n");
+
+	fprintf(fd, "face %d {\n", pEffMdl->m_NumFaces);
+	pI = pIndex;
+	for (int i = 0; i < pEffMdl->m_NumFaces; i++) {
+		int i1 = *pI++; int i2 = *pI++; int i3 = *pI++;
+		int t1 = i3, t2 = i2, t3 = i1;
+		fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+			t1, t2, t3, pEffMdl->m_texNo,
+			(pVertex + t1)->u, (pVertex + t1)->v, (pVertex + t2)->u,
+			(pVertex + t2)->v, (pVertex + t3)->u, (pVertex + t3)->v);
+	}
+	fprintf(fd, "\t}\n}\n");
+
+	pEffMdl->m_lpIB->Unlock();
+	pEffMdl->m_lpVB->Unlock();
+}
+
+//======================================================================
+//		MQOセーブ		通常データをMQOフォーマットで出力します
+//======================================================================
+bool CArea::saveMQO(char *FPath, char *FName, float posX, float posY, float posZ)
+{
+	FILE	*fd;
+	char	path[256], dirPath[256];
+	CAreaMesh		*pAreaMesh;
+	D3DXMATRIX		RootMatrix, AreaMatrix;
+	float			DispArea;
+	D3DXVECTOR3		BL, BH, BL2, BH2;
+
+	D3DXMatrixRotationZ(&RootMatrix, PAI);
+	PrepareMQOPath(path, dirPath, FPath, FName);
+
+	if ((fd = fopen(path, "w")) == NULL) return false;
+	WriteMQOHeader(fd, m_Textures, dirPath, false);
+
 	for (int num = 0; num < m_nObj; num++) {
 		if ((m_pObjInfo[num].mObj.fe & 0xfff0ffff) == 0) {
 			DispArea = g_mDispArea;
-		}
-		else {
+		} else {
 			DispArea = g_mDispTree;
 		}
 		if ((pAreaMesh = m_pObjInfo[num].pAreaMesh) == NULL) continue;
 		AreaMatrix = m_pObjInfo[num].mMat;
 		D3DXMatrixMultiply(&AreaMatrix, &AreaMatrix, &RootMatrix);
+		
 		BL = pAreaMesh->GetBoxLow();
 		BH = pAreaMesh->GetBoxHigh();
 		BL2.x = BL.x; BL2.y = BL.y; BL2.z = BH.z;
-		BL3.x = BH.x; BL3.y = BL.y; BL3.z = BH.z;
-		BL4.x = BH.x; BL4.y = BL.y; BL4.z = BL.z;
 		BH2.x = BH.x; BH2.y = BH.y; BH2.z = BL.z;
-		BH3.x = BL.x; BH3.y = BH.y; BH3.z = BL.z;
-		BH4.x = BL.x; BH4.y = BH.y; BH4.z = BH.z;
 		D3DXVec3TransformCoord(&BH, &BH, &AreaMatrix);
 		D3DXVec3TransformCoord(&BL, &BL, &AreaMatrix);
 		D3DXVec3TransformCoord(&BL2, &BL2, &AreaMatrix);
 		D3DXVec3TransformCoord(&BH2, &BH2, &AreaMatrix);
+
 		if (Min4(BL.x, BH.x, BL2.x, BH2.x) > posX + DispArea) continue;
 		if (Max4(BL.x, BH.x, BL2.x, BH2.x) < posX - DispArea) continue;
 		if (Min4(BL.z, BH.z, BL2.z, BH2.z) > posZ + DispArea) continue;
 		if (Max4(BL.z, BH.z, BL2.z, BH2.z) < posZ - DispArea) continue;
-		char areaNameBuf[18];
-		strncpy(areaNameBuf, pAreaMesh->m_AreaName.c_str(), 17);
-		areaNameBuf[17] = '\0';
-		ptr = areaNameBuf;
-		for (int i = 0; i < 18; i++) {
-			if (*ptr++ == 0x20) *(ptr - 1) = 0x0;
-		}
-		// バーテックスバッファをデバイスに設定
-		pAreaMesh->m_lpVB->Lock(0, pAreaMesh->m_VBSize, (void**)&pV, D3DLOCK_READONLY);
-		// インデックスバッファをデバイスに設定
-		pAreaMesh->m_lpIB->Lock(0, pAreaMesh->m_IBSize, (void**)&pIndex, D3DLOCK_READONLY);
-		nVer = nFace = 0;
-		// 
-		list<CStream>::iterator its2 = pAreaMesh->m_LStreams.begin();
-		list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
-		for (int count = 0; its2 != ite2; its2++, count++) {
-			fprintf(fd, "Object \"%s%02d\" {\n", areaNameBuf, count);
-			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
-			pI = pIndex + its2->GetIndexStart();
-			idxmin = 65535; idxmax = 0;
-			for (unsigned int i = 0; i < its2->GetFaceCount() + 2; i++) {
-				i1 = *pI++;
-				if (i1 > idxmax) idxmax = i1;
-				if (i1 < idxmin) idxmin = i1;
-			}
-			fprintf(fd, "vertex %d {\n", idxmax - idxmin + 1);
-			for (unsigned long verCnt = idxmin; verCnt <= idxmax; verCnt++) {
-				mVertex = *(pV + verCnt); mVer = mVertex.v;
-				D3DXVec3TransformCoord(&mVer, &mVer, &AreaMatrix);
-				fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x * 10., mVer.y * 10., mVer.z * 10.);
-			}
-			fprintf(fd, "\t}\n");
-			if (its2->GetPrimitiveType() == D3DPT_TRIANGLESTRIP) {
-				pI = pIndex + its2->GetIndexStart();
-				nFace = 0;
-				for (nVer = 0; nVer < its2->GetFaceCount() + 2;) {
-					i1 = *pI++ - idxmin; nVer++; i2 = *pI++ - idxmin; nVer++;
-					while (nVer < its2->GetFaceCount() + 2) {
-						i3 = *pI++ - idxmin; nVer++;
-						if (i2 == i3) {
-							pI++; nVer++;
-							break;
-						}
-						nFace++;
-						i1 = i2; i2 = i3;
-					}
-				}
-				fprintf(fd, "face %d {\n", nFace);
-				//fprintf(fd, "face %d {\n", its2->GetFaceCount());
-				pI = pIndex + its2->GetIndexStart();
-				nFace = 0;
-				for (nVer = 0; nVer < its2->GetFaceCount() + 2;) {
-					cnt = 0;
-					i1 = (*pI++) - idxmin; nVer++;
-					i2 = (*pI++) - idxmin; nVer++;
-					while (nVer < its2->GetFaceCount() + 2) {
-						i3 = (*pI++) - idxmin; nVer++;
-						if (i2 == i3) {
-							pI++; nVer++; break;
-						}
-						if (nVer % 2) {
-							t1 = i3; t2 = i2; t3 = i1;
-						}
-						else {
-							t1 = i1; t2 = i2; t3 = i3;
-						}
 
-						if(IsMirrorMatrix(&AreaMatrix)) {
-							fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-								t1, t2, t3, its2->m_TexNo,
-								(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-								(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-
-
-						} else {
-							fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-								t1, t3, t2, its2->m_TexNo,
-								(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t3)->tu,
-								(pV + idxmin + t3)->tv, (pV + idxmin + t2)->tu, (pV + idxmin + t2)->tv);
-
-						}
-						cnt++; nFace++;
-						i1 = i2; i2 = i3;
-					}
-				}
-				//i1 = (*pI++) - idxmin; i2 = (*pI++) - idxmin;
-				//for (unsigned int i = 0; i<its2->GetFaceCount(); i++) {
-				//	i3 = (*pI++) - idxmin;
-				//	if ((idxmin+i) % 2) {
-				//		t1 = i1; t2 = i2; t3 = i3;
-				//	}
-				//	else {
-				//		t1 = i3; t2 = i2; t3 = i1;
-				//	}
-				//	fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-				//		t1 , t2 , t3, count,
-				//		(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-				//		(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-				//	i1 = i2; i2 = i3;
-				//}
-			}
-			else if (its2->GetPrimitiveType() == D3DPT_TRIANGLELIST) {
-				fprintf(fd, "face %d {\n", its2->GetFaceCount());
-				pI = pIndex + its2->GetIndexStart();
-				for (unsigned int i = 0; i<its2->GetFaceCount(); i++) {
-					i1 = (*pI++)-idxmin; i2 = (*pI++)-idxmin; i3 = (*pI++)-idxmin;
-					t1 = i3; t2 = i2; t3 = i1;
-					if (IsMirrorMatrix(&AreaMatrix)) {
-						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-							t1, t2, t3, its2->m_TexNo,
-							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-							(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-
-
-					} else {
-						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-							t1, t3, t2, its2->m_TexNo,
-							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t3)->tu,
-							(pV + idxmin + t3)->tv, (pV + idxmin + t2)->tu, (pV + idxmin + t2)->tv);
-
-					}
-				}
-			}
-			fprintf(fd, "\t}\n");
-			fprintf(fd, "}\n");
-		}
-		//break;
-		pAreaMesh->m_lpIB->Unlock();
-		pAreaMesh->m_lpVB->Unlock();
+		WriteMQOAreaMesh(fd, pAreaMesh, AreaMatrix, true, false);
 	}
 	fprintf(fd, "EOF");
 	fclose(fd);
@@ -1290,179 +1323,32 @@ bool CArea::saveMQO(char *FPath, char *FName,float posX,float posY,float posZ)
 //======================================================================
 bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float posZ)
 {
-	FILE			*fd;
-	char			*ptr, path[256], texpath[256];
-	D3DTEXVERTEX	*pV;
-	D3DTEXVERTEX	mVertex;
-	D3DXVECTOR3     mVer;
-	WORD			*pIndex, *pI;
-	int				cnt, nVer, nFace, idxmin, idxmax;
-	int				i1, i2, i3, t1, t2, t3;
+	FILE	*fd;
+	char	path[256], dirPath[256];
 	CEffect         *pEffect;
 	CAreaMesh		*pAreaMesh;
-	D3DXMATRIX		RootMatrix,AreaMatrix;
-	D3DXVECTOR3		BL, BL2, BL3, BL4, BH, BH2, BH3, BH4;
+	D3DXMATRIX		RootMatrix, AreaMatrix;
 
 	D3DXMatrixRotationZ(&RootMatrix, PAI);
-	if ((ptr = strrstr(FPath, FName))) *ptr = '\0';
-	if ((ptr = strrstr(FName, ".mqo"))) *ptr = '\0';
-	sprintf(path, "%s%s.mqo", FPath, FName);
-	HANDLE hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
-	if (hFile != INVALID_HANDLE_VALUE) {
-		CloseHandle(hFile);
-	}
+	PrepareMQOPath(path, dirPath, FPath, FName);
+
 	if ((fd = fopen(path, "w")) == NULL) return false;
-	fprintf(fd, "Metasequoia Document\nFormat Text Ver 1.0\n\nScene {\n");
-	fprintf(fd, "	pos 0.0000 0.0000 5000.0000\n");
-	fprintf(fd, "	lookat 0.0000 0.0000 0.0000\n");
-	fprintf(fd, "	head 0.0000\n");
-	fprintf(fd, "	pich 0.0000\n");
-	fprintf(fd, "	ortho 1\n");
-	fprintf(fd, "	zoom2 2.0000\n");
-	fprintf(fd, "	amb 0.250 0.250 0.250\n}\nMaterial ");
-	fprintf(fd, "%d {\n", m_Textures.Count);
-	CTexture *pTexture = (CTexture*)m_Textures.Top();
-	int texNo = 0;
-	while (pTexture != NULL) {
-		if (pTexture == NULL) continue;
-		char	texName[256];
-		strcpy(texName, pTexture->GetTexName()); Trim(texName);
-		fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
-		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.png\")\n", texName);
-		sprintf(texpath, "%s%s.png", FPath, texName);
-		D3DXSaveTextureToFile(texpath, D3DXIFF_PNG, pTexture->GetTexture(), NULL);
-		pTexture = (CTexture*)pTexture->Next;
-		texNo++;
-	}
-	fprintf(fd, "}\n");
-//	pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
-//	while (pAreaMesh) {
+	WriteMQOHeader(fd, m_Textures, dirPath, false);
+
 	pEffect = (CEffect*)m_Effects.Top();
 	while (pEffect) {
 		if (memcmp(pEffect->m_class.c_str(), g_className, 4)) {
 			pEffect = (CEffect*)pEffect->Next;
 			continue;
 		}
-		if ( (pAreaMesh = pEffect->m_pAreaMesh) == NULL) {
+		if ((pAreaMesh = pEffect->m_pAreaMesh) == NULL) {
 			pEffect = (CEffect*)pEffect->Next;
 			continue;
 		} else {
-			//AreaMatrix = RootMatrix;
-			//AreaMatrix *= pEffect->m_mRootTransform;
 			AreaMatrix = pEffect->m_mRootTransform;
 			AreaMatrix *= RootMatrix;
 		}
-		char areaNameBuf[18];
-		strncpy(areaNameBuf, pAreaMesh->m_AreaName.c_str(), 17);
-		areaNameBuf[17] = '\0';
-		ptr = areaNameBuf;
-		for (int i = 0; i < 18; i++) {
-			if (*ptr++ == 0x20) *(ptr-1) = 0x0;
-		}
-		// バーテックスバッファをデバイスに設定
-		pAreaMesh->m_lpVB->Lock(0, pAreaMesh->m_VBSize, (void **)&pV, D3DLOCK_READONLY);
-		// インデックスバッファをデバイスに設定
-		pAreaMesh->m_lpIB->Lock(0, pAreaMesh->m_IBSize, (void **)&pIndex, D3DLOCK_READONLY);
-		nVer = nFace = 0;
-		// 
-		list<CStream>::iterator its2 = pAreaMesh->m_LStreams.begin();
-		list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
-		for (int count = 0; its2 != ite2; its2++, count++) {
-			fprintf(fd, "Object \"%s%02d\" {\n", areaNameBuf, count);
-			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
-//			fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
-			pI = pIndex + its2->GetIndexStart();
-			idxmin = 65535; idxmax = 0;
-			for (unsigned int i = 0; i < its2->GetFaceCount() + 2; i++) {
-				i1 = *pI++;
-				if (i1 > idxmax) idxmax = i1;
-				if (i1 < idxmin) idxmin = i1;
-			}
-			fprintf(fd, "vertex %d {\n", idxmax - idxmin + 1);
-			for (unsigned long verCnt = idxmin; verCnt <= idxmax; verCnt++) {
-				mVertex = *(pV + verCnt); mVer = mVertex.v;
-				D3DXVec3TransformCoord(&mVer, &mVer, &AreaMatrix);
-				fprintf(fd, "        %4.4f %4.4f %4.4f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
-			}
-			fprintf(fd, "\t}\n");
-			if (its2->GetPrimitiveType() == D3DPT_TRIANGLESTRIP) {
-				pI = pIndex + its2->GetIndexStart();
-				nFace = 0;
-				for (nVer = 0; nVer < its2->GetFaceCount() + 2;) {
-					i1 = (*pI++) - idxmin; nVer++; i2 = (*pI++) - idxmin; nVer++;
-					while (nVer<its2->GetFaceCount() + 2) {
-						i3 = (*pI++) - idxmin; nVer++;
-						if (i2 == i3) {
-							pI++; nVer++;
-							break;
-						}
-						nFace++;
-						i1 = i2; i2 = i3;
-					}
-				}
-				fprintf(fd, "face %d {\n", nFace);
-				//fprintf(fd, "face %d {\n", its2->GetFaceCount());
-				pI = pIndex + its2->GetIndexStart();
-				nFace = 0;
-				for (nVer = 0; nVer < its2->GetFaceCount() + 2;) {
-					cnt = 0;
-					i1 = (*pI++) - idxmin; nVer++;
-					i2 = (*pI++) - idxmin; nVer++;
-					while (nVer<its2->GetFaceCount() + 2)  {
-						i3 = (*pI++) - idxmin; nVer++;
-						if (i2 == i3) {
-							pI++; nVer++; break;
-						}
-						if (nVer % 2) {
-							t1 = i3; t2 = i2; t3 = i1;
-						}
-						else {
-							t1 = i1; t2 = i2; t3 = i3;
-						}
-						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-							t1, t2, t3, its2->m_TexNo,
-							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-							(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-						cnt++; nFace++;
-						i1 = i2; i2 = i3;
-					}
-				}
-				//i1 = (*pI++) - idxmin; i2 = (*pI++) - idxmin;
-				//for (unsigned int i = 0; i<its2->GetFaceCount(); i++) {
-				//	i3 = (*pI++) - idxmin;
-				//	if ((idxmin+i) % 2) {
-				//		t1 = i1; t2 = i2; t3 = i3;
-				//	}
-				//	else {
-				//		t1 = i3; t2 = i2; t3 = i1;
-				//	}
-				//	fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-				//		t1 , t2 , t3, count,
-				//		(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-				//		(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-				//	i1 = i2; i2 = i3;
-				//}
-			}
-			else if (its2->GetPrimitiveType() == D3DPT_TRIANGLELIST) {
-				fprintf(fd, "face %d {\n", its2->GetFaceCount());
-				pI = pIndex + its2->GetIndexStart();
-				for (unsigned int i = 0; i<its2->GetFaceCount(); i++) {
-					i1 = (*pI++) - idxmin; i2 = (*pI++) - idxmin; i3 = (*pI++) - idxmin;
-					t1 = i3; t2 = i2; t3 = i1;
-//					t1 = i1; t2 = i2; t3 = i3;
-					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-						t1, t2, t3, its2->m_TexNo,
-						(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-						(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-				}
-			}
-			fprintf(fd, "\t}\n");
-			fprintf(fd, "}\n");
-		}
-		//break;
-		pAreaMesh->m_lpIB->Unlock();
-		pAreaMesh->m_lpVB->Unlock();
-//		pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+		WriteMQOAreaMesh(fd, pAreaMesh, AreaMatrix, false, true);
 		pEffect = (CEffect*)pEffect->Next;
 	}
 	fprintf(fd, "EOF");
@@ -1472,47 +1358,20 @@ bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float pos
 //======================================================================
 //		MQOセーブ データをMQOフォーマットで出力します
 //======================================================================
-bool CArea::saveMQO3(char *FPath, char *FName){
-	FILE			*fd;
-	char			*ptr, path[256], texpath[256];
-	EFFECTVERTEX	*pVertex, *pV;
-	D3DXVECTOR3     mVer;
+bool CArea::saveMQO3(char *FPath, char *FName)
+{
+	FILE	*fd;
+	char	path[256], dirPath[256];
 	CEffect         *pEffect;
 	CEffectModel	*pEffMdl;
-	WORD			*pIndex, *pI;
-	int				i1, i2, i3, t1, t2, t3;
 	D3DXMATRIX		RootMatrix, EffectMatrix;
 
 	D3DXMatrixRotationZ(&RootMatrix, PAI);
-	if ((ptr = strrstr(FPath, FName))) *ptr = '\0';
-	if ((ptr = strrstr(FName, ".mqo"))) *ptr = '\0';
-	sprintf(path, "%s%s.mqo", FPath, FName);
-	HANDLE hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
-	if (hFile != INVALID_HANDLE_VALUE) {
-		CloseHandle(hFile);
-	}
+	PrepareMQOPath(path, dirPath, FPath, FName);
+
 	if ((fd = fopen(path, "w")) == NULL) return false;
-	fprintf(fd, "Metasequoia Document\nFormat Text Ver 1.0\n\nScene {\n");
-	fprintf(fd, "	pos 0.0000 0.0000 5000.0000\n");
-	fprintf(fd, "	lookat 0.0000 0.0000 0.0000\n");
-	fprintf(fd, "	head 0.0000\n");
-	fprintf(fd, "	pich 0.0000\n");
-	fprintf(fd, "	ortho 1\n");
-	fprintf(fd, "	zoom2 2.0000\n");
-	fprintf(fd, "	amb 0.250 0.250 0.250\n}\nMaterial ");
-	fprintf(fd, "%d {\n", m_Textures.Count);
-	CTexture *pTexture = (CTexture*)m_Textures.Top();
-	char	texName[256];
-	while (pTexture != NULL) {
-		if (pTexture == NULL) continue;
-		strcpy(texName, pTexture->m_TexName.c_str()); Trim(texName);
-		fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
-		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.png\")\n", texName);
-		sprintf(texpath, "%s%s.png", FPath, texName);
-		D3DXSaveTextureToFile(texpath, D3DXIFF_PNG, pTexture->GetTexture(), NULL);
-		pTexture = (CTexture*)pTexture->Next;
-	}
-	fprintf(fd, "}\n");
+	WriteMQOHeader(fd, m_Textures, dirPath, true);
+
 	pEffect = (CEffect*)m_Effects.Top();
 	while (pEffect) {
 		if (memcmp(pEffect->m_class.c_str(), g_className, 4)) {
@@ -1523,70 +1382,10 @@ bool CArea::saveMQO3(char *FPath, char *FName){
 			pEffect = (CEffect*)pEffect->Next;
 			continue;
 		} else {
-			//AreaMatrix = RootMatrix;
-			//AreaMatrix *= pEffect->m_mRootTransform;
 			EffectMatrix = pEffect->m_mRootTransform;
 			EffectMatrix *= RootMatrix;
 		}
-		char	objName[256];
-		strcpy(objName, pEffMdl->m_Name.c_str()); Trim(objName);
-		fprintf(fd, "Object \"%s\" {\n", objName);
-		fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
-		// バーテックスバッファをデバイスに設定
-		pEffMdl->m_lpVB->Lock(0, pEffMdl->m_VBSize, (void **)&pVertex, D3DLOCK_READONLY);
-		// インデックスバッファをデバイスに設定
-		pEffMdl->m_lpIB->Lock(0, pEffMdl->m_IBSize, (void **)&pIndex, D3DLOCK_READONLY);
-		switch (pEffMdl->m_ModelType) {
-			case 0x21:
-				// 頂点出力
-				fprintf(fd, "vertex %d {\n", pEffMdl->m_NumVertices);
-				pV = pVertex;
-				for (int i = 0; i <= pEffMdl->m_NumVertices; i++, pV++) {
-					mVer.x = pV->x; mVer.y = pV->y; mVer.z = pV->z;
-					D3DXVec3TransformCoord(&mVer, &mVer, &EffectMatrix);
-					fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
-				}
-				fprintf(fd, "\t}\n");
-				// 面出力
-				fprintf(fd, "face %d {\n", pEffMdl->m_NumFaces);
-				pI = pIndex;
-				for (int i = 0; i<pEffMdl->m_NumFaces; i++) {
-					i1 = *pI++; i2 = *pI++; i3 = *pI++;
-					t1 = i3; t2 = i2; t3 = i1;
-					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-						t1, t2, t3, pEffMdl->m_texNo,
-						(pVertex + t1)->u, (pVertex + t1)->v, (pVertex + t2)->u,
-						(pVertex + t2)->v, (pVertex + t3)->u, (pVertex + t3)->v);
-				}
-				fprintf(fd, "\t}\n");
-				break;
-			case 0x1f:
-				// 頂点出力
-				fprintf(fd, "vertex %d {\n", pEffMdl->m_NumVertices);
-				pV = pVertex;
-				for (int i = 0; i <= pEffMdl->m_NumVertices; i++, pV++) {
-					mVer.x = pV->x; mVer.y = pV->y; mVer.z = pV->z;
-					D3DXVec3TransformCoord(&mVer, &mVer, &EffectMatrix);
-					fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
-				}
-				fprintf(fd, "\t}\n");
-				// 面出力
-				fprintf(fd, "face %d {\n", pEffMdl->m_NumFaces);
-				pI = pIndex;
-				for (int i = 0; i<pEffMdl->m_NumFaces; i++) {
-					i1 = *pI++; i2 = *pI++; i3 = *pI++;
-					t1 = i3; t2 = i2; t3 = i1;
-					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-						t1, t2, t3, pEffMdl->m_texNo,
-						(pVertex + t1)->u, (pVertex + t1)->v, (pVertex + t2)->u,
-						(pVertex + t2)->v, (pVertex + t3)->u, (pVertex + t3)->v);
-				}
-				fprintf(fd, "\t}\n");
-				break;
-		}
-		fprintf(fd, "}\n");
-		pEffMdl->m_lpIB->Unlock();
-		pEffMdl->m_lpVB->Unlock();
+		WriteMQOEffectModel(fd, pEffMdl, EffectMatrix);
 		pEffect = (CEffect*)pEffect->Next;
 	}
 	fprintf(fd, "EOF");

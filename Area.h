@@ -160,6 +160,13 @@ public:
 		m_EffectModels.Release();
 		return true;
 	}
+
+private:
+	// MQOセーブ共通ヘルパー
+	static void PrepareMQOPath(char* path, char* dirPath, const char* FPath, const char* FName);
+	static void WriteMQOHeader(FILE* fd, CList& textures, const char* dirPath, bool isEffectModel);
+	static void WriteMQOAreaMesh(FILE* fd, CAreaMesh* pAreaMesh, const D3DXMATRIX& AreaMatrix, bool useMirrorLogic, bool isEffect);
+	static void WriteMQOEffectModel(FILE* fd, CEffectModel* pEffMdl, const D3DXMATRIX& EffectMatrix);
 }
 CArea, *LPCArea;
 
