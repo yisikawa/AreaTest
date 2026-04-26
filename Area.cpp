@@ -1,1395 +1,1213 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <memory>
-// INCLUDE
 #include <stdio.h>
-#include <d3d9.h>
-#include <d3dx9.h>
+#include <wincodec.h>
 #include "Render.h"
 #include "Area.h"
 #include "EffectSystem.h"
 #include <list>
 #include "Utils.h"
 
+#pragma comment(lib, "windowscodecs.lib")
+
 using namespace std;
-// Function
-BOOL GetFileNameFromDno(LPSTR filename,DWORD dwID);
-DWORD	ConvertStr2Dno( char* DataName );
-HRESULT CreateVB( LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD fvf );
-HRESULT CreateIB( LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage );
-BOOL IsMirrorMatrix(const D3DXMATRIX* pMat);
-// DEFINE
-#define SAFE_RELEASE(p)		if ( (p) != NULL ) { (p)->Release(); (p) = NULL; }
-//#define SAFE_DELETES(p)
-//#define SAFE_DELETE(p)
-constexpr float PAI = 3.14159265358979323846f;
+
+BOOL GetFileNameFromDno(LPSTR filename, DWORD dwID);
+DWORD ConvertStr2Dno(char* DataName);
+
+#define SAFE_RELEASE(p) if ((p) != NULL) { (p)->Release(); (p) = NULL; }
+constexpr float PAI  = 3.14159265358979323846f;
 constexpr float PAI2 = PAI * 2.0f;
-static const D3DXMATRIX matrixMirrorX(-1.0f,0,0,0,  0, 1.0f,0,0,  0,0, 1.0f,0,  0,0,0,1.0f);
-static const D3DXMATRIX matrixMirrorY( 1.0f,0,0,0,  0,-1.0f,0,0,  0,0, 1.0f,0,  0,0,0,1.0f);
-static const D3DXMATRIX matrixMirrorZ( 1.0f,0,0,0,  0, 1.0f,0,0,  0,0,-1.0f,0,  0,0,0,1.0f);
-// グローバル
-extern	BOOL		g_mIsUseSoftware;
-extern	D3DLIGHT9	g_mLight,g_mLightbase;
-extern	D3DXMATRIX	g_mProjection, g_mView;
-extern	D3DXVECTOR3	g_mAt,g_mEye,g_mUp;
-extern	float		g_mTime;
-extern	float		g_mDispArea;
-extern	float		g_mDispTree;
-extern	D3DLIGHT9	g_mLight,g_mLightbase;
-extern	D3DXVECTOR3	g_mEntry;
-extern	int			g_mAreaBright;
-extern	char		g_mWeather[];
-extern	float		g_mLightDist;
-extern	D3DXVECTOR3	g_mLightPosition;
-extern	D3DXMATRIX	g_mViewLight;					// ライトから見た場合のビューマトリックス 
-extern	char		g_className[];
-extern	char		g_meshPath[];
-extern	char		g_texPath[];
 
+extern BOOL       g_mIsUseSoftware;
+extern XMFLOAT4X4 g_mProjection, g_mView;
+extern XMFLOAT3   g_mAt, g_mEye, g_mUp;
+extern float      g_mTime;
+extern float      g_mDispArea;
+extern float      g_mDispTree;
+extern XMFLOAT3   g_mEntry;
+extern int        g_mAreaBright;
+extern char       g_mWeather[];
+extern float      g_mLightDist;
+extern XMFLOAT3   g_mLightPosition;
+extern XMFLOAT4X4 g_mViewLight;
+extern char       g_className[];
+extern char       g_meshPath[];
+extern char       g_texPath[];
 
-// 頂点フォーマット
-D3DVERTEXELEMENT9 VSFormat[] = 
+static bool IsMirrorMatrix(const XMFLOAT4X4* pMat)
 {
-// Area Mesh Stream
-    { 0,  0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT,  D3DDECLUSAGE_POSITION, 0}, 
-    { 0, 12, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT,  D3DDECLUSAGE_NORMAL,   0}, 
-    { 0, 24, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT,  D3DDECLUSAGE_COLOR,	0}, 
-    { 0, 28, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT,  D3DDECLUSAGE_TEXCOORD, 0}, 
-    D3DDECL_END()
-};
+    return XMVectorGetX(XMMatrixDeterminant(LoadM(*pMat))) < 0.f;
+}
 
-
-static char *pVertexShaders[3] =
+//======================================================================
+// DXT1 ブロックデコーダ
+//======================================================================
+static void DecodeDXT1Block(const BYTE* src, uint32_t* dst,
+                            UINT bx, UINT by, UINT width, UINT height,
+                            bool forceOpaque)
 {
-//------1--エリア表示用-------------------------------------------------- 
-	{
-		"vs_1_1																		\n"
-		"dcl_position0		v0														\n"
-		"dcl_normal0		v1														\n"
-		"dcl_color0			v2														\n"
-		"dcl_texcoord0		v3														\n"
-		"																			\n"
-		"def	c[0],		0.005f, 0.002f, 500.f, 600.0f	; FOG用オフセット	    \n"
-		"def	c[1],		0.0f, 2.0f, 1.0f, 2.0f	;	Phong定数					\n"
-		"def	c[2],		0.3f, 0.3f, 0.3f, 0.3f	;	スペキュラー色				\n"
-		"def	c[3],		1.0f, 0.0f, 3.0f, 765.01f	;	定数					\n"
-		";--------------------------------------------------------------------------\n"
-		"; 座標変換																	\n"
-		";--------------------------------------------------------------------------\n"
-		"m4x3	r5,			v0,			c[10]										\n"
-		"m3x3	r6,			v1,			c[10]										\n"
-		"; Normalize																\n"
-		"dp3	r6.w,		r6,			r6											\n"
-		"rsq	r6.w,		r6.w													\n"
-		"mul	r6,			r6,			r6.w										\n"
-		";--------------------------------------------------------------------------\n"
-		"; w = 1.0 に																\n"
-		";--------------------------------------------------------------------------\n"
-		"mov	r5.w,		v0.w													\n"
-//		"mov	r5.w,		c[3].x													\n"
-		"mov	r6.w,		c[3].x													\n"
-		";--------------------------------------------------------------------------\n"
-		"; 座標変換																	\n"
-		";--------------------------------------------------------------------------\n"
-		"m4x4	oPos,		r5,		c[6]											\n"
-		";--------------------------------------------------------------------------\n"
-		"; メッシュのテクスチャー													\n"
-		";--------------------------------------------------------------------------\n"
-		"mov	oT0.xy,		v3.xy													\n"
-		"																			\n"
-		";--------------------------------------------------------------------------\n"
-		"; FOG																		\n"
-		";--------------------------------------------------------------------------\n"
-		"add	r1,			c[5],	-r5												\n"
-		"dp3	r1.w,		r1,			r1											\n"
-		"rsq	r0.w,		r1.w													\n"
-		"rcp	r0.w,		r0.w				; 視点からの距離					\n"
-		"add	r0.w,		c[0].w,		-r0.w	; 距離　1000 - 距離					\n"
-		"mul	oFog,		c[0].y,		r0.w	; 距離　X 0.004						\n"
-		";--------------------------------------------------------------------------\n"
-		"; ライト																	\n"
-		";--------------------------------------------------------------------------\n"
-		";視点から頂点の方向e														\n"
-		"rsq	r1.w,		r1.w													\n"
-		"mul	r1,			r1,			r1.w	; r1 = e = 正規化(視点-頂点）		\n"
-		";Phong																		\n"
-		"dp3	r2.w,		c[4],		r6		; (l.n)								\n"
-		"dp3	r2.x,		c[4],		r1		; (l,e)								\n"
-		"dp3	r2.y,		r6,			r1		; (n,e)								\n"
-		"																			\n"
-		"mul	r2.z,		r2.w,		r2.y			; r2.z = (l,n)(n,e)			\n"
-		"mad	r2.z,		c[1].y,		r2.z,	-r2.x	; r2.z = 2(l,n)(n,e)-(l,e)	\n"
-		"max	r2.z,		r2.z,		c[1].x			; 負の値をカット			\n"
-		"mov	r2.w,		c[1].w						; 2乗のためのパラメータ		\n"
-		"lit	r2.z,		r2.zzww						; r2.z = r2.z ^r2.w			\n"
-		"mul	r3,			c[2],		r2.z			; ｽﾍﾟｷｭﾗｰの色をつける		\n"
-		"																			\n"
-		"dp4	r2.z,		c[4],		r6				; (l,n)+ambient				\n"
-		"mad	oD0,		v2,			r2.z,	r3		; ランバート diffuse		\n"
-		"mov	oD0.a,		v2.a						; alpha = model diffuse.a	\n"
-	},
-//------2--effect表示用---
-	{
-		"vs_1_1																		\n"
-		"dcl_position0		v0														\n"
-		"dcl_normal0		v1														\n"
-		"dcl_color0			v2														\n"
-		"dcl_texcoord0		v3														\n"
-		"																			\n"
-//		"def	c[0],		0.005f, 0.001f, 500.f, 1000.0f	; FOG用オフセット	    \n"
-		"def	c[0],		0.005f, 0.002f, 500.f, 600.0f	; FOG用オフセット	    \n"
-		";--------------------------------------------------------------------------\n"
-		"; 座標変換																	\n"
-		";--------------------------------------------------------------------------\n"
-		"m4x4	r0,			v0,		c[3]											\n"
-//		"mov	r0.w,		v0.w													\n"
-		"mov	oPos,		r0														\n"
-		"																			\n"
-		";--------------------------------------------------------------------------\n"
-		"; FOG																	\n"
-		";--------------------------------------------------------------------------\n"
-		"dp3	r1.w,		r0,			r0											\n"
-		"rsq	r0.w,		r1.w													\n"
-		"mul	r0.w,		r0.w,		r1.w	; 視点からの距離					\n"
-		"add	r0.w,		c[0].w,		-r0.w	; 距離　500 - 距離						\n"
-		"mul	oFog,		c[0].y,		r0.w	; 距離　X 0.004						\n"
-		";--------------------------------------------------------------------------\n"
-		"; メッシュのテクスチャー													\n"
-		";--------------------------------------------------------------------------\n"
-		"mov	r1.xy,		v3.xy													\n"
-		"add	oT0.xy,		r1.xy,		c[1].xy										\n"
-		"																			\n"
-		"mov	oD0,		c[2]						; ランバート diffuse		\n"
-		"mov	oD0.a,		v2.a						; alpha = model diffuse.a	\n"
-	},
-//----3----Weather表示用---
-	{
-		"vs_1_1																		\n"
-		"dcl_position0		v0														\n"
-		"dcl_normal0		v1														\n"
-		"dcl_color0			v2														\n"
-		"dcl_texcoord0		v3														\n"
-		"																			\n"
-//		"def	c[0],		0.005f, 0.001f, 500.f, 1000.0f	; FOG用オフセット	    \n"
-		"def	c[0],		0.005f, 0.002f, 500.f, 600.0f	; FOG用オフセット	    \n"
-		";--------------------------------------------------------------------------\n"
-		"; 座標変換																	\n"
-		";--------------------------------------------------------------------------\n"
-		"m4x4	r0,			v0,		c[2]											\n"
-		"mov	oPos,		r0														\n"
-		"																			\n"
-		";--------------------------------------------------------------------------\n"
-		"; FOG																	\n"
-		";--------------------------------------------------------------------------\n"
-		"dp3	r1.w,		r0,			r0											\n"
-		"rsq	r0.w,		r1.w													\n"
-		"mul	r0.w,		r0.w,		r1.w	; 視点からの距離					\n"
-		"add	r0.w,		c[0].w,		-r0.w	; 距離　500 - 距離						\n"
-		"mul	oFog,		c[0].y,		r0.w	; 距離　X 0.004						\n"
-		";--------------------------------------------------------------------------\n"
-		"; メッシュのテクスチャー													\n"
-		";--------------------------------------------------------------------------\n"
-		"mov	r1.xy,		v3.xy													\n"
-		"add	oT0.xy,		r1.xy,		c[1].xy										\n"
-		"																			\n"
-		"mov	oD0,		v2							; alpha = model diffuse.a	\n"
-	},
-};
+    uint16_t c0 = *(uint16_t*)src;
+    uint16_t c1 = *(uint16_t*)(src + 2);
+    uint32_t idx = *(uint32_t*)(src + 4);
 
+    int r0 = ((c0>>11)&0x1F)*255/31, g0 = ((c0>>5)&0x3F)*255/63, b0 = (c0&0x1F)*255/31;
+    int r1 = ((c1>>11)&0x1F)*255/31, g1 = ((c1>>5)&0x3F)*255/63, b1 = (c1&0x1F)*255/31;
 
+    uint32_t col[4];
+    col[0] = 0xFF000000u|(r0<<16)|(g0<<8)|b0;
+    col[1] = 0xFF000000u|(r1<<16)|(g1<<8)|b1;
+    if (c0 > c1 || forceOpaque) {
+        col[2] = 0xFF000000u|(((2*r0+r1)/3)<<16)|(((2*g0+g1)/3)<<8)|((2*b0+b1)/3);
+        col[3] = 0xFF000000u|(((r0+2*r1)/3)<<16)|(((g0+2*g1)/3)<<8)|((b0+2*b1)/3);
+    } else {
+        col[2] = 0xFF000000u|(((r0+r1)/2)<<16)|(((g0+g1)/2)<<8)|((b0+b1)/2);
+        col[3] = 0x00000000u;
+    }
+    for (int py = 0; py < 4; py++) {
+        for (int px = 0; px < 4; px++) {
+            UINT x = bx+px, y = by+py;
+            if (x < width && y < height)
+                dst[y*width+x] = col[(idx >> (2*(py*4+px))) & 3];
+        }
+    }
+}
 
-//		コンストラクタ
+//======================================================================
+// DXT3 ブロックデコーダ
+//======================================================================
+static void DecodeDXT3Block(const BYTE* src, uint32_t* dst,
+                            UINT bx, UINT by, UINT width, UINT height)
+{
+    const BYTE* aptr = src;
+    const BYTE* cptr = src + 8;
+    uint16_t c0 = *(uint16_t*)cptr;
+    uint16_t c1 = *(uint16_t*)(cptr+2);
+    uint32_t cidx = *(uint32_t*)(cptr+4);
+
+    int r0=((c0>>11)&0x1F)*255/31, g0=((c0>>5)&0x3F)*255/63, b0=(c0&0x1F)*255/31;
+    int r1=((c1>>11)&0x1F)*255/31, g1=((c1>>5)&0x3F)*255/63, b1=(c1&0x1F)*255/31;
+    uint32_t rgb[4];
+    rgb[0] = (r0<<16)|(g0<<8)|b0;
+    rgb[1] = (r1<<16)|(g1<<8)|b1;
+    rgb[2] = (((2*r0+r1)/3)<<16)|(((2*g0+g1)/3)<<8)|((2*b0+b1)/3);
+    rgb[3] = (((r0+2*r1)/3)<<16)|(((g0+2*g1)/3)<<8)|((b0+2*b1)/3);
+
+    for (int py = 0; py < 4; py++) {
+        uint16_t arow = *(uint16_t*)(aptr + py*2);
+        for (int px = 0; px < 4; px++) {
+            UINT x = bx+px, y = by+py;
+            if (x < width && y < height) {
+                int a8 = ((arow >> (px*4)) & 0xF) * 255 / 15;
+                int ci = (cidx >> (2*(py*4+px))) & 3;
+                dst[y*width+x] = ((uint32_t)a8<<24) | rgb[ci];
+            }
+        }
+    }
+}
+
+//======================================================================
+// WIC PNG 保存 (Phase 7)
+//======================================================================
+static HRESULT SaveTextureToPNG(const char* path, CTexture* pTex)
+{
+    if (!pTex || pTex->m_cpuData.empty()) return E_FAIL;
+    UINT w = pTex->m_texWidth, h = pTex->m_texHeight;
+    if (!w || !h) return E_FAIL;
+
+    wchar_t wpath[512];
+    MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, 512);
+
+    IWICImagingFactory* pWIC = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr,
+                                  CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pWIC));
+    if (FAILED(hr)) return hr;
+
+    IWICStream*            pStream = nullptr;
+    IWICBitmapEncoder*     pEnc    = nullptr;
+    IWICBitmapFrameEncode* pFrame  = nullptr;
+    IPropertyBag2*         pProps  = nullptr;
+
+    hr = pWIC->CreateStream(&pStream);
+    if (SUCCEEDED(hr)) hr = pStream->InitializeFromFilename(wpath, GENERIC_WRITE);
+    if (SUCCEEDED(hr)) hr = pWIC->CreateEncoder(GUID_ContainerFormatPng, nullptr, &pEnc);
+    if (SUCCEEDED(hr)) hr = pEnc->Initialize(pStream, WICBitmapEncoderNoCache);
+    if (SUCCEEDED(hr)) hr = pEnc->CreateNewFrame(&pFrame, &pProps);
+    if (SUCCEEDED(hr)) hr = pFrame->Initialize(pProps);
+    if (SUCCEEDED(hr)) hr = pFrame->SetSize(w, h);
+    WICPixelFormatGUID fmt = GUID_WICPixelFormat32bppBGRA;
+    if (SUCCEEDED(hr)) hr = pFrame->SetPixelFormat(&fmt);
+    if (SUCCEEDED(hr)) hr = pFrame->WritePixels(h, w*4, w*h*4,
+                                                 (BYTE*)pTex->m_cpuData.data());
+    if (SUCCEEDED(hr)) hr = pFrame->Commit();
+    if (SUCCEEDED(hr)) hr = pEnc->Commit();
+
+    if (pProps)  pProps->Release();
+    if (pFrame)  pFrame->Release();
+    if (pEnc)    pEnc->Release();
+    if (pStream) pStream->Release();
+    pWIC->Release();
+    return hr;
+}
+
+//======================================================================
+// コンストラクタ
+//======================================================================
 CArea::CArea()
 {
-	m_mArea				= 0;
-	m_VertexFormat			= NULL;
-	m_VertexSize			= 0;
-	m_hVertexShader			= NULL;
-	m_Textures.Init();
-	D3DXMatrixIdentity( &m_mRootTransform );
-	m_mRootTransform		*= matrixMirrorY;
-	//m_mRootTransform *= matrixMirrorZ;
-	//D3DXMatrixRotationZ(&m_mRootTransform,PAI);
-	m_pObjInfo = NULL;
-	m_nObj					= 0;
-
-	m_AreaMeshs.Init();
-	m_EffMeshs.Init();
+    m_pInputLayout = nullptr;
+    m_pVS          = nullptr;
+    m_pPS          = nullptr;
+    m_pCB          = nullptr;
+    m_mArea        = 0;
+    m_VertexSize   = 0;
+    m_Textures.Init();
+    StoreM(m_mRootTransform, XMMatrixScaling(1.f, -1.f, 1.f));
+    m_pObjInfo     = nullptr;
+    m_nObj         = 0;
+    m_AreaMeshs.Init();
+    m_EffMeshs.Init();
 }
 
-//		デストラクタ
+//======================================================================
+// デストラクタ
+//======================================================================
 CArea::~CArea()
 {
-	m_Textures.Release();
-	CAreaMesh *pAreaMesh = (CAreaMesh*)m_AreaMeshs.Top();
-	while( pAreaMesh ) {
-		pAreaMesh->~CAreaMesh();
-		pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
-	}
-	m_AreaMeshs.Release();
-	pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
-	while (pAreaMesh) {
-		pAreaMesh->~CAreaMesh();
-		pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
-	}
-	m_EffMeshs.Release();
-	CTexture* pTexture = (CTexture*)m_Textures.Top();
-	while ( pTexture != NULL ) {
-		pTexture->~CTexture();
-		pTexture = (CTexture*)pTexture->Next;
-	}
-	m_Textures.Release();
-	delete[] m_pObjInfo; m_pObjInfo = NULL;
-}
-
-//		データの初期化
-void	CArea::InitData(void)
-{
-	m_Textures.Release();
-	CAreaMesh *pAreaMesh = (CAreaMesh*)m_AreaMeshs.Top();
-	while( pAreaMesh ) {
-		pAreaMesh->~CAreaMesh();
-		pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
-	}
-	m_AreaMeshs.Release();
-	pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
-	while (pAreaMesh) {
-		pAreaMesh->~CAreaMesh();
-		pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
-	}
-	m_EffMeshs.Release();
-	CTexture* pTexture = (CTexture*)m_Textures.Top();
-	while ( pTexture != NULL ) {
-		pTexture->~CTexture();
-		pTexture = (CTexture*)pTexture->Next;
-	}
-	m_Textures.Release();
-	delete[] m_pObjInfo; m_pObjInfo = NULL;
-	m_pObjInfo		= NULL;
-	m_nObj			= 0;
-}
-
-
-//		テクスチャの読み込み
-HRESULT CArea::LoadTextureFromFile( char *FileName  )
-{
-	HRESULT hr							= S_OK;
-
-	// ファイルをメモリに取り込む
-	std::unique_ptr<char[]> auto_pdat;
-	char *pdat=NULL, path[512];
-	int dwSize;
-	unsigned long	cnt;
-	strcpy(path, FileName);
-	if (strlen(g_texPath) > 0) {
-		convert_path(path, g_texPath);
-	}
-
-	HANDLE hFile = CreateFile(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
-	if( hFile!=INVALID_HANDLE_VALUE ){
-		dwSize = GetFileSize(hFile,NULL);
-	    auto_pdat.reset(new char[dwSize]());
-		pdat = auto_pdat.get();
-	    ReadFile(hFile,pdat,dwSize,&cnt,NULL);
-	    CloseHandle(hFile);
-		hr = 0;
-	} else {
-		return -1;
-	}
-	// テクスチャの読み込み
-	int			type,pos=0,next;
-	while( pos<dwSize ) {
-		next = *((int*)(pdat+pos+4));next>>=3;next&=0x7ffff0;
-		if( next<16 ) break; 
-		if( next+pos>dwSize ) break;
-		type = *((int*)(pdat+pos+4));type &=0x7f;
-		switch( type ) {
-		case 0x20 :
-			CTexture *pTexture;
-			pTexture = new CTexture;
-			m_Textures.InsertEnd( pTexture );
-			// テクスチャ
-			char	TexName[18];
-			strncpy(TexName,pdat+pos+16+1,16);TexName[16]='\0';
-			pTexture->SetTexName(TexName);
-			LPDIRECT3DTEXTURE9 pTex;
-			UINT xx,yy;
-			xx = *(UINT*)(pdat+pos+33+4);
-			yy = *(UINT*)(pdat+pos+33+8);
-			D3DLOCKED_RECT rc;
-			if( *(DWORD*)(pdat+pos+33+0x28) == 'DXT3' ){
-				hr = GetDevice()->CreateTexture(xx,yy,0,0 ,D3DFMT_DXT3,D3DPOOL_MANAGED,&pTex,NULL);
-				if( hr!=D3D_OK ) break;
-				hr = pTex->LockRect(0,&rc,NULL,0);
-				if(hr==D3D_OK){
-				  CopyMemory(rc.pBits,pdat+pos+33+0x28+12,(xx/4) * (yy/4) * 16 );
-				  pTex->UnlockRect(0);
-				}
-			} else if( *(DWORD*)(pdat+pos+33+0x28) == 'DXT1' ){
-				hr = GetDevice()->CreateTexture(xx,yy,0,0,D3DFMT_DXT1,D3DPOOL_MANAGED,&pTex,NULL);
-				if( hr!=D3D_OK ) break;
-				hr = pTex->LockRect(0,&rc,NULL,0);
-				if(hr==D3D_OK){
-				  CopyMemory(rc.pBits,pdat+pos+33+0x28+12,(xx/4) * (yy/4) * 8  );
-				  pTex->UnlockRect(0);
-				}
-			} else {
-				hr = GetDevice()->CreateTexture(xx,yy,0,0,D3DFMT_A8R8G8B8,D3DPOOL_MANAGED,&pTex,NULL);
-				if( hr!=D3D_OK ) return NULL;
-				hr = pTex->LockRect(0,&rc,NULL,0);
-				if(hr==D3D_OK){
-					for( DWORD jy=0; jy<yy; jy++ ){
-						for( DWORD jx=0; jx<xx; jx++ ){
-							DWORD *pp   = (DWORD *)rc.pBits;
-							BYTE  *idx = (BYTE  *)(pdat+pos+33+0x28+0x400);
-							DWORD *pal = (DWORD *)(pdat+pos+33+0x28);
-							pp[(yy-jy-1)*xx+jx] = pal[idx[jy*xx+jx]];
-						}
-					}
-				}
-				pTex->UnlockRect(0);
-			}
-			pTexture->SetTexture( pTex );
-			SAFE_RELEASE( pTex );
-			break;
-		}
-		pos+=next;
-	}
-	// 終了
-	// SAFE_DELETES(pdat); (Managed by std::unique_ptr)
-//	delete pdat;
-	return hr;
+    SAFE_RELEASE(m_pInputLayout);
+    SAFE_RELEASE(m_pVS);
+    SAFE_RELEASE(m_pPS);
+    SAFE_RELEASE(m_pCB);
+    m_Textures.Release();
+    CAreaMesh* pAreaMesh = (CAreaMesh*)m_AreaMeshs.Top();
+    while (pAreaMesh) {
+        pAreaMesh->~CAreaMesh();
+        pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+    }
+    m_AreaMeshs.Release();
+    pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
+    while (pAreaMesh) {
+        pAreaMesh->~CAreaMesh();
+        pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+    }
+    m_EffMeshs.Release();
+    CTexture* pTexture = (CTexture*)m_Textures.Top();
+    while (pTexture != NULL) {
+        pTexture->~CTexture();
+        pTexture = (CTexture*)pTexture->Next;
+    }
+    m_Textures.Release();
+    delete[] m_pObjInfo; m_pObjInfo = NULL;
 }
 
 //======================================================================
-//
-//		(0x19,0x05)キーフレーム,エフェクトモーションの読み込み
-//
-//	input
-//		char *filename			: 読み込みファイル名（リソース名でも可
-//
-//	output
-//		エラー文字列へのポインタ。
-//		正常終了の場合はNULL。
-//
+// データ初期化
 //======================================================================
-HRESULT CArea::LoadEffectFromFile(char *FileName)
+void CArea::InitData(void)
 {
-	HRESULT hr = S_OK;
-
-	//====================================================
-	// ファイルをメモリに取り込む
-	//====================================================
-	std::unique_ptr<char[]> auto_pdat;
-	char *pdat = NULL;
-	int dwSize;
-	CKeyFrame *pKeyFrame;
-	CEffect *pEffect;
-	unsigned long	cnt;
-
-	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
-	if (hFile != INVALID_HANDLE_VALUE){
-		dwSize = GetFileSize(hFile, NULL);
-		auto_pdat.reset(new char[dwSize]());
-		pdat = auto_pdat.get();
-		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
-		CloseHandle(hFile);
-		hr = 0;
-	}
-	else {
-		return -1;
-	}
-
-	//====================================================
-	// メッシュの読み込み
-	//====================================================
-	int					type, pos = 0, next;
-	while (pos<dwSize) {
-		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
-		if (next<16) break;
-		if (next + pos>dwSize) break;
-		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
-		switch (type) {
-		case 0x19:
-			pKeyFrame = new CKeyFrame;
-			pKeyFrame->GetKeyFrame(pdat + pos);
-			m_KeyFrames.InsertTop(pKeyFrame);
-			break;
-		}
-		pos += next;
-	}
-	pos = 0;
-	std::string className;
-	while (pos<dwSize) {
-		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
-		if (next<16) break;
-		if (next + pos>dwSize) break;
-		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
-		switch (type) {
-		case 0x00:
-			className.clear();
-			break;
-		case 0x01:
-			className.assign(pdat + pos, 4);
-			break;
-		case 0x05:
-			pEffect = new CEffect;
-			pEffect->m_class = className;
-			pEffect->InitData();
-			pEffect->GetEffectMatrix(pdat + pos, (CKeyFrame*)m_KeyFrames.Top());
-			m_Effects.InsertTop(pEffect);
-			break;
-		}
-		pos += next;
-	}
-	pEffect = (CEffect*)m_Effects.Top();
-	while (pEffect) {
-		pEffect->m_pAreaMesh = NULL;
-		CAreaMesh *pAreaMesh = (CAreaMesh *)m_EffMeshs.Top();
-		while (pAreaMesh) {
-			if (!memcmp(pEffect->m_target.c_str(), pAreaMesh->m_AreaType.c_str(), 4) 
-	//			&& pEffect->m_ModelType == pEffectModel->m_ModelType
-			) {
-				pEffect->m_pAreaMesh = pAreaMesh;
-				break;
-			}
-			pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
-		}
-		pEffect->m_pEffectModel = NULL;
-		CEffectModel *pEffectModel = (CEffectModel*)m_EffectModels.Top();
-		while (pEffectModel) {
-			if (!memcmp(pEffect->m_target.c_str(), pEffectModel->m_type.c_str(), 4) &&
-				pEffect->m_ModelType == pEffectModel->m_ModelType) {
-				pEffect->m_pEffectModel = pEffectModel;
-				break;
-			}
-			pEffectModel = (CEffectModel*)pEffectModel->Next;
-		}
-		pEffect = (CEffect*)pEffect->Next;
-	}
-	// SAFE_DELETES(pdat); (Managed by std::unique_ptr)
-	return hr;
-}
-//======================================================================
-//
-//		(0x1F)エフェクトモデルの読み込み
-//
-//	input
-//		char *filename			: 読み込みファイル名（リソース名でも可
-//		unsigned long FVF		: メッシュのFVF
-//
-//	output
-//		エラー文字列へのポインタ。
-//		正常終了の場合はNULL。
-//
-//======================================================================
-HRESULT CArea::LoadEffectModelFromFile(char *FileName)
-{
-	CEffectModel *pEffectModel;
-	CTexture	*pTexture;
-	DAT2AH	*pHeader;
-	HRESULT hr = S_OK;
-
-	//====================================================
-	// ファイルをメモリに取り込む
-	//====================================================
-	std::unique_ptr<char[]> auto_pdat;
-	char *pdat = NULL;
-	int dwSize;
-	unsigned long	cnt;
-	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
-	if (hFile != INVALID_HANDLE_VALUE){
-		dwSize = GetFileSize(hFile, NULL);
-		auto_pdat.reset(new char[dwSize]());
-		pdat = auto_pdat.get();
-		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
-		CloseHandle(hFile);
-		hr = 0;
-	}
-	else {
-		return -1;
-	}
-	//====================================================
-	// メッシュの読み込み
-	//====================================================
-	int			type, pos = 0, next;
-	while (pos<dwSize) {
-		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
-		if (next<16) break;
-		if (next + pos>dwSize) break;
-		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
-		switch (type) {
-		case 0x1F: // EffectModel
-			pHeader = (DAT2AH*)(pdat + pos);
-			pEffectModel = new CEffectModel;
-			m_EffectModels.InsertTop(pEffectModel);
-			pEffectModel->LoadEffectModel(pdat + pos);
-			pTexture = (CTexture*)m_Textures.Top();
-			int texno = 0;
-			while (pTexture != NULL) {
-				if (!memcmp(pEffectModel->m_Name.c_str(), pTexture->m_TexName.c_str(), 16)){
-					pEffectModel->m_texNo = texno;
-					pEffectModel->m_pTexture = pTexture;
-					break;
-				}
-				texno++;
-				pTexture = (CTexture*)pTexture->Next;
-			}
-		}
-		pos += next;
-	}
-	// 終了
-	// SAFE_DELETES(pdat); (Managed by std::unique_ptr)
-	return hr;
+    m_Textures.Release();
+    CAreaMesh* pAreaMesh = (CAreaMesh*)m_AreaMeshs.Top();
+    while (pAreaMesh) {
+        pAreaMesh->~CAreaMesh();
+        pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+    }
+    m_AreaMeshs.Release();
+    pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
+    while (pAreaMesh) {
+        pAreaMesh->~CAreaMesh();
+        pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+    }
+    m_EffMeshs.Release();
+    CTexture* pTexture = (CTexture*)m_Textures.Top();
+    while (pTexture != NULL) {
+        pTexture->~CTexture();
+        pTexture = (CTexture*)pTexture->Next;
+    }
+    m_Textures.Release();
+    delete[] m_pObjInfo; m_pObjInfo = NULL;
+    m_nObj = 0;
 }
 
 //======================================================================
-//
-//		（0x21）エフェクト2モデルの読み込み
-//
-//	input
-//		char *filename			: 読み込みファイル名（リソース名でも可
-//		unsigned long FVF		: メッシュのFVF
-//
-//	output
-//		エラー文字列へのポインタ。
-//		正常終了の場合はNULL。
-//
+// テクスチャ読み込み (Phase 3: DX11 + CPU デコード)
 //======================================================================
-HRESULT CArea::LoadEffectModel2FromFile(char *FileName)
+HRESULT CArea::LoadTextureFromFile(char* FileName)
 {
-	DAT2AH	*pHeader;
-	HRESULT hr = S_OK;
+    HRESULT hr = S_OK;
+    std::unique_ptr<char[]> auto_pdat;
+    char* pdat = NULL, path[512];
+    int dwSize;
+    unsigned long cnt;
+    strcpy(path, FileName);
+    if (strlen(g_texPath) > 0)
+        convert_path(path, g_texPath);
 
-	//====================================================
-	// ファイルをメモリに取り込む
-	//====================================================
-	std::unique_ptr<char[]> auto_pdat;
-	char *pdat = NULL;
-	int dwSize;
-	unsigned long	cnt;
-	HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
-	if (hFile != INVALID_HANDLE_VALUE){
-		dwSize = GetFileSize(hFile, NULL);
-		auto_pdat.reset(new char[dwSize]());
-		pdat = auto_pdat.get();
-		ReadFile(hFile, pdat, dwSize, &cnt, NULL);
-		CloseHandle(hFile);
-		hr = 0;
-	}
-	else {
-		return -1;
-	}
+    HANDLE hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        dwSize = GetFileSize(hFile, NULL);
+        auto_pdat.reset(new char[dwSize]());
+        pdat = auto_pdat.get();
+        ReadFile(hFile, pdat, dwSize, &cnt, NULL);
+        CloseHandle(hFile);
+        hr = 0;
+    } else {
+        return -1;
+    }
 
-	//====================================================
-	// メッシュの読み込み
-	//====================================================
-	int			count = 0, type, pos = 0, next;
-	CTexture		*pTexture;
-	while (pos<dwSize) {
-		next = *((int*)(pdat + pos + 4)); next >>= 3; next &= 0x7ffff0;
-		if (next<16) break;
-		if (next + pos>dwSize) break;
-		type = *((int*)(pdat + pos + 4)); type &= 0x7f;
-		switch (type) {
-		case 0x21: // EffectModel
-			pHeader = (DAT2AH*)(pdat + pos);
-			CEffectModel *pEffectModel = new CEffectModel;
-			m_EffectModels.InsertTop(pEffectModel);
-			pEffectModel->LoadEffectModel2(pdat + pos);
-			if (pEffectModel->m_ModelTotal <= 0) {
-				m_EffectModels.Erase(pEffectModel);
-				delete pEffectModel; pEffectModel = NULL;
-			}
-			else {
-				pTexture = (CTexture*)m_Textures.Top();
-				int texno = 0;
-				while (pTexture != NULL) {
-					if (!memcmp(pEffectModel->m_Name.c_str(), pTexture->m_TexName.c_str(), 16)){
-						pEffectModel->m_texNo = texno;
-						pEffectModel->m_pTexture = pTexture;
-						break;
-					}
-					texno++;
-					pTexture = (CTexture*)pTexture->Next;
-				}
-			}
-		}
-		pos += next;
-	}
-	// 終了
-	// SAFE_DELETES(pdat); (Managed by std::unique_ptr)
-	return hr;
+    int type, pos = 0, next;
+    while (pos < dwSize) {
+        next = *((int*)(pdat+pos+4)); next >>= 3; next &= 0x7ffff0;
+        if (next < 16) break;
+        if (next + pos > dwSize) break;
+        type = *((int*)(pdat+pos+4)); type &= 0x7f;
+        switch (type) {
+        case 0x20: {
+            CTexture* pTexture = new CTexture;
+            m_Textures.InsertEnd(pTexture);
+
+            char TexName[18];
+            strncpy(TexName, pdat+pos+16+1, 16); TexName[16] = '\0';
+            pTexture->SetTexName(TexName);
+
+            UINT xx = *(UINT*)(pdat+pos+33+4);
+            UINT yy = *(UINT*)(pdat+pos+33+8);
+            pTexture->m_texWidth  = xx;
+            pTexture->m_texHeight = yy;
+            pTexture->m_cpuData.resize((size_t)xx * yy, 0);
+            uint32_t* pPixels = pTexture->m_cpuData.data();
+
+            const BYTE* pixBase = (const BYTE*)(pdat+pos+33+0x28);
+            DWORD fourcc = *(DWORD*)pixBase;
+
+            if (fourcc == 'DXT3') {
+                const BYTE* blocks = pixBase + 12;
+                for (UINT by = 0; by < yy; by += 4)
+                    for (UINT bx = 0; bx < xx; bx += 4)
+                        DecodeDXT3Block(blocks+((by/4)*(xx/4)+(bx/4))*16,
+                                        pPixels, bx, by, xx, yy);
+            } else if (fourcc == 'DXT1') {
+                const BYTE* blocks = pixBase + 12;
+                for (UINT by = 0; by < yy; by += 4)
+                    for (UINT bx = 0; bx < xx; bx += 4)
+                        DecodeDXT1Block(blocks+((by/4)*(xx/4)+(bx/4))*8,
+                                        pPixels, bx, by, xx, yy, false);
+            } else {
+                const DWORD* pal = (const DWORD*)pixBase;
+                const BYTE*  idx = (const BYTE*)(pixBase + 0x400);
+                for (DWORD jy = 0; jy < yy; jy++)
+                    for (DWORD jx = 0; jx < xx; jx++)
+                        pPixels[(yy-jy-1)*xx+jx] = pal[idx[jy*xx+jx]];
+            }
+
+            D3D11_TEXTURE2D_DESC td = {};
+            td.Width            = xx;
+            td.Height           = yy;
+            td.MipLevels        = 1;
+            td.ArraySize        = 1;
+            td.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+            td.SampleDesc.Count = 1;
+            td.Usage            = D3D11_USAGE_DEFAULT;
+            td.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
+
+            D3D11_SUBRESOURCE_DATA sd = {};
+            sd.pSysMem     = pPixels;
+            sd.SysMemPitch = xx * sizeof(uint32_t);
+
+            ID3D11Texture2D* pTex2D = nullptr;
+            hr = GetDevice11()->CreateTexture2D(&td, &sd, &pTex2D);
+            if (FAILED(hr)) break;
+
+            ID3D11ShaderResourceView* pSRV = nullptr;
+            hr = GetDevice11()->CreateShaderResourceView(pTex2D, nullptr, &pSRV);
+            pTex2D->Release();
+            if (SUCCEEDED(hr)) {
+                pTexture->SetTexture(pSRV);
+                pSRV->Release();
+            }
+            break;
+        }
+        }
+        pos += next;
+    }
+    return hr;
 }
 
-//		MMBのデコードsub
-void CArea::DecodeMMBSub(BYTE *p)
+//======================================================================
+// キーフレーム・エフェクト読み込み
+//======================================================================
+HRESULT CArea::LoadEffectFromFile(char* FileName)
 {
-	if(p[6] == 0xFF && p[7] == 0xFF)	{
-		int decode_length = (p[0] << 0) | (p[1] << 8) | (p[2] << 16);
-		DWORD key1 = p[5] ^ 0xF0;
-		DWORD key2 = key_table2[key1] ;
+    HRESULT hr = S_OK;
+    std::unique_ptr<char[]> auto_pdat;
+    char* pdat = NULL;
+    int dwSize;
+    CKeyFrame* pKeyFrame;
+    CEffect* pEffect;
+    unsigned long cnt;
 
-		DWORD decode_count = ((decode_length - 8) & ~0xf) / 2;
+    HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        dwSize = GetFileSize(hFile, NULL);
+        auto_pdat.reset(new char[dwSize]());
+        pdat = auto_pdat.get();
+        ReadFile(hFile, pdat, dwSize, &cnt, NULL);
+        CloseHandle(hFile);
+        hr = 0;
+    } else {
+        return -1;
+    }
 
-		DWORD *data1 = (DWORD *)(p + 8 + 0);
-		DWORD *data2 = (DWORD *)(p + 8 + decode_count);
-		for(DWORD pos = 0; pos < decode_count; pos += 8)
-		{
-			if(key2 & 1)
-			{
-				DWORD tmp;
-
-				tmp = data1[0];
-				data1[0] = data2[0];
-				data2[0] = tmp;
-
-				tmp = data1[1];
-				data1[1] = data2[1];
-				data2[1] = tmp;
-			}
-			key1 += 9;
-			key2 += key1;
-			data1 += 2;
-			data2 += 2;
-		}
-	}
+    int type, pos = 0, next;
+    while (pos < dwSize) {
+        next = *((int*)(pdat+pos+4)); next >>= 3; next &= 0x7ffff0;
+        if (next < 16) break;
+        if (next + pos > dwSize) break;
+        type = *((int*)(pdat+pos+4)); type &= 0x7f;
+        switch (type) {
+        case 0x19:
+            pKeyFrame = new CKeyFrame;
+            pKeyFrame->GetKeyFrame(pdat+pos);
+            m_KeyFrames.InsertTop(pKeyFrame);
+            break;
+        }
+        pos += next;
+    }
+    pos = 0;
+    std::string className;
+    while (pos < dwSize) {
+        next = *((int*)(pdat+pos+4)); next >>= 3; next &= 0x7ffff0;
+        if (next < 16) break;
+        if (next + pos > dwSize) break;
+        type = *((int*)(pdat+pos+4)); type &= 0x7f;
+        switch (type) {
+        case 0x00: className.clear(); break;
+        case 0x01: className.assign(pdat+pos, 4); break;
+        case 0x05:
+            pEffect = new CEffect;
+            pEffect->m_class = className;
+            pEffect->InitData();
+            pEffect->GetEffectMatrix(pdat+pos, (CKeyFrame*)m_KeyFrames.Top());
+            m_Effects.InsertTop(pEffect);
+            break;
+        }
+        pos += next;
+    }
+    pEffect = (CEffect*)m_Effects.Top();
+    while (pEffect) {
+        pEffect->m_pAreaMesh = NULL;
+        CAreaMesh* pAreaMesh = (CAreaMesh*)m_EffMeshs.Top();
+        while (pAreaMesh) {
+            if (!memcmp(pEffect->m_target.c_str(), pAreaMesh->m_AreaType.c_str(), 4)) {
+                pEffect->m_pAreaMesh = pAreaMesh;
+                break;
+            }
+            pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+        }
+        pEffect->m_pEffectModel = NULL;
+        CEffectModel* pEffectModel = (CEffectModel*)m_EffectModels.Top();
+        while (pEffectModel) {
+            if (!memcmp(pEffect->m_target.c_str(), pEffectModel->m_type.c_str(), 4) &&
+                pEffect->m_ModelType == pEffectModel->m_ModelType) {
+                pEffect->m_pEffectModel = pEffectModel;
+                break;
+            }
+            pEffectModel = (CEffectModel*)pEffectModel->Next;
+        }
+        pEffect = (CEffect*)pEffect->Next;
+    }
+    return hr;
 }
 
-//		MMBのデコード
-void CArea::DecodeMMB(BYTE*p)
+//======================================================================
+// エフェクトモデル読み込み (0x1F)
+//======================================================================
+HRESULT CArea::LoadEffectModelFromFile(char* FileName)
 {
-	if(p[3] >= 5)
-	{
-		int decode_length = (p[0] << 0) | (p[1] << 8) | (p[2] << 16);
-		DWORD key = key_table[p[5] ^ 0xF0];
-		int key_counter = 0;
+    CEffectModel* pEffectModel;
+    CTexture* pTexture;
+    DAT2AH* pHeader;
+    HRESULT hr = S_OK;
+    std::unique_ptr<char[]> auto_pdat;
+    char* pdat = NULL;
+    int dwSize;
+    unsigned long cnt;
 
-		for(int pos = 8; pos < decode_length; pos++)
-		{
-			DWORD x = ((key & 0xFF) << 8) | (key & 0xFF);
-			key += ++key_counter;
+    HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        dwSize = GetFileSize(hFile, NULL);
+        auto_pdat.reset(new char[dwSize]());
+        pdat = auto_pdat.get();
+        ReadFile(hFile, pdat, dwSize, &cnt, NULL);
+        CloseHandle(hFile);
+        hr = 0;
+    } else {
+        return -1;
+    }
 
-			p[pos] ^= (x >> (key & 7));
-			key += ++key_counter;
-		}
-	}
-	DecodeMMBSub(p);
+    int type, pos = 0, next;
+    while (pos < dwSize) {
+        next = *((int*)(pdat+pos+4)); next >>= 3; next &= 0x7ffff0;
+        if (next < 16) break;
+        if (next + pos > dwSize) break;
+        type = *((int*)(pdat+pos+4)); type &= 0x7f;
+        switch (type) {
+        case 0x1F:
+            pHeader = (DAT2AH*)(pdat+pos);
+            pEffectModel = new CEffectModel;
+            m_EffectModels.InsertTop(pEffectModel);
+            pEffectModel->LoadEffectModel(pdat+pos);
+            pTexture = (CTexture*)m_Textures.Top();
+            {
+                int texno = 0;
+                while (pTexture != NULL) {
+                    if (!memcmp(pEffectModel->m_Name.c_str(), pTexture->m_TexName.c_str(), 16)) {
+                        pEffectModel->m_texNo    = texno;
+                        pEffectModel->m_pTexture = pTexture;
+                        break;
+                    }
+                    texno++;
+                    pTexture = (CTexture*)pTexture->Next;
+                }
+            }
+            break;
+        }
+        pos += next;
+    }
+    return hr;
 }
 
-//		MZBのデコード
+//======================================================================
+// エフェクト2モデル読み込み (0x21)
+//======================================================================
+HRESULT CArea::LoadEffectModel2FromFile(char* FileName)
+{
+    DAT2AH* pHeader;
+    HRESULT hr = S_OK;
+    std::unique_ptr<char[]> auto_pdat;
+    char* pdat = NULL;
+    int dwSize;
+    unsigned long cnt;
+
+    HANDLE hFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        dwSize = GetFileSize(hFile, NULL);
+        auto_pdat.reset(new char[dwSize]());
+        pdat = auto_pdat.get();
+        ReadFile(hFile, pdat, dwSize, &cnt, NULL);
+        CloseHandle(hFile);
+        hr = 0;
+    } else {
+        return -1;
+    }
+
+    int type, pos = 0, next;
+    CTexture* pTexture;
+    while (pos < dwSize) {
+        next = *((int*)(pdat+pos+4)); next >>= 3; next &= 0x7ffff0;
+        if (next < 16) break;
+        if (next + pos > dwSize) break;
+        type = *((int*)(pdat+pos+4)); type &= 0x7f;
+        switch (type) {
+        case 0x21: {
+            pHeader = (DAT2AH*)(pdat+pos);
+            CEffectModel* pEffectModel = new CEffectModel;
+            m_EffectModels.InsertTop(pEffectModel);
+            pEffectModel->LoadEffectModel2(pdat+pos);
+            if (pEffectModel->m_ModelTotal <= 0) {
+                m_EffectModels.Erase(pEffectModel);
+                delete pEffectModel;
+            } else {
+                pTexture = (CTexture*)m_Textures.Top();
+                int texno = 0;
+                while (pTexture != NULL) {
+                    if (!memcmp(pEffectModel->m_Name.c_str(), pTexture->m_TexName.c_str(), 16)) {
+                        pEffectModel->m_texNo    = texno;
+                        pEffectModel->m_pTexture = pTexture;
+                        break;
+                    }
+                    texno++;
+                    pTexture = (CTexture*)pTexture->Next;
+                }
+            }
+            break;
+        }
+        }
+        pos += next;
+    }
+    return hr;
+}
+
+//======================================================================
+// MMB / MZB デコード (変更なし)
+//======================================================================
+void CArea::DecodeMMBSub(BYTE* p)
+{
+    if (p[6] == 0xFF && p[7] == 0xFF) {
+        int decode_length = (p[0]<<0)|(p[1]<<8)|(p[2]<<16);
+        DWORD key1 = p[5] ^ 0xF0;
+        DWORD key2 = key_table2[key1];
+        DWORD decode_count = ((decode_length - 8) & ~0xf) / 2;
+        DWORD* data1 = (DWORD*)(p+8+0);
+        DWORD* data2 = (DWORD*)(p+8+decode_count);
+        for (DWORD pos2 = 0; pos2 < decode_count; pos2 += 8) {
+            if (key2 & 1) {
+                DWORD tmp;
+                tmp = data1[0]; data1[0] = data2[0]; data2[0] = tmp;
+                tmp = data1[1]; data1[1] = data2[1]; data2[1] = tmp;
+            }
+            key1 += 9; key2 += key1;
+            data1 += 2; data2 += 2;
+        }
+    }
+}
+
+void CArea::DecodeMMB(BYTE* p)
+{
+    if (p[3] >= 5) {
+        int decode_length = (p[0]<<0)|(p[1]<<8)|(p[2]<<16);
+        DWORD key = key_table[p[5] ^ 0xF0];
+        int key_counter = 0;
+        for (int pos2 = 8; pos2 < decode_length; pos2++) {
+            DWORD x = ((key & 0xFF) << 8) | (key & 0xFF);
+            key += ++key_counter;
+            p[pos2] ^= (x >> (key & 7));
+            key += ++key_counter;
+        }
+    }
+    DecodeMMBSub(p);
+}
+
 void CArea::DecodeMZB(BYTE* p)
 {
-	if (p[3] >= 0x1B)
-	{
-		int decode_length = (p[0] << 0) | (p[1] << 8) | (p[2] << 16);
-		DWORD key = key_table[p[7] ^ 0xFF];
-		int key_counter = 0;
-
-		for (int pos = 8; pos < decode_length; )
-		{
-			int xor_length = ((key >> 4) & 7) + 16;
-
-			if ((key & 1) && (pos + xor_length < decode_length))
-			{
-				for (int i = 0; i < xor_length; i++)
-	 			{
-					p[pos+i] ^= 0xFF;
-				}
-			}
-			key += ++key_counter;
-			pos += xor_length;
-		}
-		int node_count = (p[4] << 0) | (p[5] << 8) | (p[6] << 16);
-		TEMPOBJINFO *node = (TEMPOBJINFO *)(p+32);
-		for(int i = 0; i < node_count; i++)
-		{
-			for(int i = 0; i < 16; i++)
-			{
-				node->id[i] ^= 0x55;
-			}
-			node++;
-		}
-	}
+    if (p[3] >= 0x1B) {
+        int decode_length = (p[0]<<0)|(p[1]<<8)|(p[2]<<16);
+        DWORD key = key_table[p[7] ^ 0xFF];
+        int key_counter = 0;
+        for (int pos2 = 8; pos2 < decode_length; ) {
+            int xor_length = ((key >> 4) & 7) + 16;
+            if ((key & 1) && (pos2 + xor_length < decode_length))
+                for (int i2 = 0; i2 < xor_length; i2++) p[pos2+i2] ^= 0xFF;
+            key += ++key_counter;
+            pos2 += xor_length;
+        }
+        int node_count = (p[4]<<0)|(p[5]<<8)|(p[6]<<16);
+        TEMPOBJINFO* node = (TEMPOBJINFO*)(p+32);
+        for (int i2 = 0; i2 < node_count; i2++) {
+            for (int j = 0; j < 16; j++) node->id[j] ^= 0x55;
+            node++;
+        }
+    }
 }
 
-//		頂点シェーダー作成
-bool CArea::CreateVertexShader( void )
+//======================================================================
+// 頂点シェーダー作成 (Phase 4: DX11)
+//======================================================================
+bool CArea::CreateVertexShader(void)
 {
-	HRESULT hr;
-	ID3DXBuffer *pShader = NULL;
+    HRESULT hr;
+    ID3DBlob* pVSBlob  = nullptr;
+    ID3DBlob* pPSBlob  = nullptr;
+    ID3DBlob* pErrBlob = nullptr;
 
-    // シェーディング用バーテックスシェーダー作成
-    hr = GetDevice()->CreateVertexDeclaration( VSFormat, &m_VertexFormat );
-    if( hr ) return false;
-	// シェーダーのアセンブル
-	hr = D3DXAssembleShader( pVertexShaders[0],strlen(pVertexShaders[0]),0,NULL,NULL,&pShader,NULL );
-	if SUCCEEDED( hr ){
-		// シェーダー生成
-		hr = GetDevice()->CreateVertexShader((DWORD*)pShader->GetBufferPointer(),&m_hVertexShader );
-		pShader->Release();
-	}
-	return SUCCEEDED( hr );
+    hr = D3DCompileFromFile(L"hlsl.fx", nullptr, nullptr,
+                            "VS", "vs_4_0", 0, 0, &pVSBlob, &pErrBlob);
+    if (FAILED(hr)) { if (pErrBlob) pErrBlob->Release(); return false; }
+
+    hr = GetDevice11()->CreateVertexShader(pVSBlob->GetBufferPointer(),
+                                           pVSBlob->GetBufferSize(),
+                                           nullptr, &m_pVS);
+    if (FAILED(hr)) { pVSBlob->Release(); return false; }
+
+    D3D11_INPUT_ELEMENT_DESC layout[] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,  0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,  0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR",    0, DXGI_FORMAT_B8G8R8A8_UNORM,   0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,     0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    hr = GetDevice11()->CreateInputLayout(layout, 4,
+                                          pVSBlob->GetBufferPointer(),
+                                          pVSBlob->GetBufferSize(),
+                                          &m_pInputLayout);
+    pVSBlob->Release();
+    if (FAILED(hr)) return false;
+
+    hr = D3DCompileFromFile(L"hlsl.fx", nullptr, nullptr,
+                            "PS", "ps_4_0", 0, 0, &pPSBlob, &pErrBlob);
+    if (FAILED(hr)) { if (pErrBlob) pErrBlob->Release(); return false; }
+
+    hr = GetDevice11()->CreatePixelShader(pPSBlob->GetBufferPointer(),
+                                          pPSBlob->GetBufferSize(),
+                                          nullptr, &m_pPS);
+    pPSBlob->Release();
+    if (FAILED(hr)) return false;
+
+    hr = CreateBuffer11(&m_pCB, sizeof(CBData), D3D11_BIND_CONSTANT_BUFFER);
+    return SUCCEEDED(hr);
 }
 
-
-//		エリアメッシュの読み込み
-HRESULT CArea::LoadAreaFromFile( char *FileName, unsigned long FVF )
+//======================================================================
+// エリアメッシュ読み込み (Phase 6: DirectXMath)
+//======================================================================
+HRESULT CArea::LoadAreaFromFile(char* FileName, unsigned long FVF)
 {
-	std::string		MeshName;
-	D3DXMATRIX		AreaMatrix,TempMatrix;
-	TEMPOBJINFO		*pTobj;
-	CAreaMesh		*pAreaMesh;
-	HRESULT			hr			=	S_OK;
-	unsigned long	cnt;
-	std::unique_ptr<char[]> auto_pFileBuf;
-	char			*pFileBuf = NULL,path[512];
-	int				mFileSize	=	0;
-	D3DXVECTOR3		BL,BH,BM1,BM2;
+    std::string    MeshName;
+    TEMPOBJINFO*   pTobj;
+    CAreaMesh*     pAreaMesh;
+    HRESULT        hr = S_OK;
+    unsigned long  cnt;
+    std::unique_ptr<char[]> auto_pFileBuf;
+    char* pFileBuf = NULL, path[512];
+    int   mFileSize = 0;
 
-	strcpy(path, FileName);
-	if (strlen(g_meshPath) > 0) {
-		convert_path(path, g_meshPath);
-	}
-	// ファイルをメモリに取り込む
-	HANDLE hFile = CreateFile(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_ARCHIVE,NULL);
-	if( hFile!=INVALID_HANDLE_VALUE ){
-		mFileSize = GetFileSize(hFile,NULL);
-	    auto_pFileBuf.reset(new char[mFileSize]());
-	    pFileBuf = auto_pFileBuf.get();
-	    hr = ReadFile(hFile,pFileBuf,mFileSize,&cnt,NULL);
-	    CloseHandle(hFile);
-		hr = 0;
-	} else {
-		return -1;
-	}
-	// エリアメッシュのインフォメーション読み込み
-	int			mzbcnt=0,i,type,pos=0,next;
-	while( pos<mFileSize ) {
-		next = *((int*)(pFileBuf+pos+4));next>>=3;next&=0x7ffff0;
-		if( next<16 ) break; 
-		if( next+pos>mFileSize ) break;
-		type = *((int*)(pFileBuf+pos+4));type &=0x7f;
-		switch( type ) {
-		case 0x1c : // AreaMesh
-			DecodeMZB((BYTE*)&pFileBuf[pos+16]);
-			if( mzbcnt==0 ) {
-				m_nObj = (*(int*)(pFileBuf+pos+4+16) )&0xffffff;
-				m_pObjInfo = new OBJINFO[ m_nObj ]();
-				pTobj = (TEMPOBJINFO*)(pFileBuf+pos+32+16);
-				for( i=0 ; i<m_nObj ; i++,pTobj++ ) {
-					memcpy((char*)&m_pObjInfo[i],(char*)pTobj,sizeof(TEMPOBJINFO));
-				}
-			} else {
-				int nObj = (*(int*)(pFileBuf+pos+4+16) )&0xffffff;
-				OBJINFO *pObjInfo = new OBJINFO[ m_nObj + nObj]();
-				pTobj = (TEMPOBJINFO*)(pFileBuf+pos+32+16);
-				memcpy((char*)pObjInfo,(char*)m_pObjInfo,sizeof(OBJINFO)*m_nObj);
-				for( i=0 ; i<nObj ; i++,pTobj++ ) {
-					memcpy((char*)(pObjInfo+m_nObj+i),(char*)pTobj,sizeof(TEMPOBJINFO));
-				}
-				delete[] m_pObjInfo; m_pObjInfo = NULL;
-				m_pObjInfo = pObjInfo;
-				m_nObj += nObj;
-			}
-			mzbcnt++;
-			break;
-		}
-		pos+=next;
-	}
-	// エリアメッシュのデータ読み込み
-	pos=0;
-	while( pos<mFileSize ) {
-		next = *((int*)(pFileBuf+pos+4));next>>=3;next&=0x7ffff0;
-		if( next<16 ) break; 
-		if( next+pos>mFileSize ) break;
-		type = *((int*)(pFileBuf+pos+4));type &=0x7f;
-		switch( type ) {
-		case 0x2e : // AreaMesh
-			DecodeMMB((BYTE*)&pFileBuf[pos+16]);
-			MeshName.assign(pFileBuf+pos+32, 16);
-			for( i=0 ; i<m_nObj ; i++ ) {
-				if( !memcmp(MeshName.c_str(),m_pObjInfo[i].mObj.id,16) ) break;
-			}
-			if (i >= m_nObj) {
-				pAreaMesh = new CAreaMesh;
-				if (pAreaMesh == NULL) return -1;
-				pAreaMesh->m_AreaName.assign(pFileBuf + pos + 32, 16);
-				pAreaMesh->LoadAreaMesh(pFileBuf + pos, this, FVF);
-				if (pAreaMesh->GetlpVB() == NULL || pAreaMesh->GetlpIB() == NULL) {
-					delete pAreaMesh; pAreaMesh = NULL;
-				}
-				else {
-					//				m_LAreaMeshs.push_back(*pAreaMesh );
-					m_EffMeshs.InsertEnd(pAreaMesh);
-				}
-			}
-			else {
-				pAreaMesh = new CAreaMesh;
-				if (pAreaMesh == NULL) return -1;
-				pAreaMesh->m_AreaName.assign(pFileBuf + pos + 32, 16);
-				pAreaMesh->LoadAreaMesh(pFileBuf + pos, this, FVF);
-				if (pAreaMesh->GetlpVB() == NULL || pAreaMesh->GetlpIB() == NULL) {
-					delete pAreaMesh; pAreaMesh = NULL;
-				}
-				else {
-					//				m_LAreaMeshs.push_back(*pAreaMesh );
-					m_AreaMeshs.InsertEnd(pAreaMesh);
-				}
-			}
-			break;
-		}
-		pos+=next;
-	}
-	for( i=0 ; i<m_nObj ; i++ ) {
-		D3DXMatrixIdentity(&AreaMatrix);
-		D3DXMatrixScaling(&TempMatrix,m_pObjInfo[i].mObj.fScaleX,m_pObjInfo[i].mObj.fScaleY,m_pObjInfo[i].mObj.fScaleZ );
-		D3DXMatrixMultiply(&AreaMatrix,&AreaMatrix,&TempMatrix);
-		D3DXMatrixRotationX(&TempMatrix,m_pObjInfo[i].mObj.fRotX);
-		D3DXMatrixMultiply(&AreaMatrix,&AreaMatrix,&TempMatrix);
-		D3DXMatrixRotationY(&TempMatrix,m_pObjInfo[i].mObj.fRotY);
-		D3DXMatrixMultiply(&AreaMatrix,&AreaMatrix,&TempMatrix);
-		D3DXMatrixRotationZ(&TempMatrix,m_pObjInfo[i].mObj.fRotZ);
-		D3DXMatrixMultiply(&AreaMatrix,&AreaMatrix,&TempMatrix);
-		D3DXMatrixTranslation(&TempMatrix,m_pObjInfo[i].mObj.fTransX,m_pObjInfo[i].mObj.fTransY,m_pObjInfo[i].mObj.fTransZ );
-		D3DXMatrixMultiply(&AreaMatrix,&AreaMatrix,&TempMatrix);
-		m_pObjInfo[i].mMat = AreaMatrix;
-		m_pObjInfo[i].pAreaMesh = NULL;
-		pAreaMesh = (CAreaMesh*)m_AreaMeshs.Top();
-		while( pAreaMesh ) {
-			if( !memcmp(pAreaMesh->m_AreaName.c_str(),m_pObjInfo[i].mObj.id,16) ) {
-				m_pObjInfo[i].pAreaMesh = pAreaMesh;				
-				break;
-			}
-			pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
-		}
-		if( pAreaMesh==NULL ) continue;
-		if( (m_pObjInfo[i].mObj.fe&0xfff0fff0)!=0 ) continue;
-	}
-	// SAFE_DELETES( pFileBuf ); (Managed by std::unique_ptr)
-	return hr;
+    strcpy(path, FileName);
+    if (strlen(g_meshPath) > 0)
+        convert_path(path, g_meshPath);
+
+    HANDLE hFile = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE, NULL);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        mFileSize = GetFileSize(hFile, NULL);
+        auto_pFileBuf.reset(new char[mFileSize]());
+        pFileBuf = auto_pFileBuf.get();
+        hr = ReadFile(hFile, pFileBuf, mFileSize, &cnt, NULL);
+        CloseHandle(hFile);
+        hr = 0;
+    } else {
+        return -1;
+    }
+
+    int mzbcnt = 0, i, type, pos = 0, next;
+    while (pos < mFileSize) {
+        next = *((int*)(pFileBuf+pos+4)); next >>= 3; next &= 0x7ffff0;
+        if (next < 16) break;
+        if (next + pos > mFileSize) break;
+        type = *((int*)(pFileBuf+pos+4)); type &= 0x7f;
+        switch (type) {
+        case 0x1c:
+            DecodeMZB((BYTE*)&pFileBuf[pos+16]);
+            if (mzbcnt == 0) {
+                m_nObj = (*(int*)(pFileBuf+pos+4+16)) & 0xffffff;
+                m_pObjInfo = new OBJINFO[m_nObj]();
+                pTobj = (TEMPOBJINFO*)(pFileBuf+pos+32+16);
+                for (i = 0; i < m_nObj; i++, pTobj++)
+                    memcpy(&m_pObjInfo[i], pTobj, sizeof(TEMPOBJINFO));
+            } else {
+                int nObj = (*(int*)(pFileBuf+pos+4+16)) & 0xffffff;
+                OBJINFO* pObjInfo = new OBJINFO[m_nObj + nObj]();
+                pTobj = (TEMPOBJINFO*)(pFileBuf+pos+32+16);
+                memcpy(pObjInfo, m_pObjInfo, sizeof(OBJINFO)*m_nObj);
+                for (i = 0; i < nObj; i++, pTobj++)
+                    memcpy(pObjInfo+m_nObj+i, pTobj, sizeof(TEMPOBJINFO));
+                delete[] m_pObjInfo; m_pObjInfo = NULL;
+                m_pObjInfo = pObjInfo;
+                m_nObj += nObj;
+            }
+            mzbcnt++;
+            break;
+        }
+        pos += next;
+    }
+
+    pos = 0;
+    while (pos < mFileSize) {
+        next = *((int*)(pFileBuf+pos+4)); next >>= 3; next &= 0x7ffff0;
+        if (next < 16) break;
+        if (next + pos > mFileSize) break;
+        type = *((int*)(pFileBuf+pos+4)); type &= 0x7f;
+        switch (type) {
+        case 0x2e:
+            DecodeMMB((BYTE*)&pFileBuf[pos+16]);
+            MeshName.assign(pFileBuf+pos+32, 16);
+            for (i = 0; i < m_nObj; i++)
+                if (!memcmp(MeshName.c_str(), m_pObjInfo[i].mObj.id, 16)) break;
+            {
+                pAreaMesh = new CAreaMesh;
+                if (!pAreaMesh) return -1;
+                pAreaMesh->m_AreaName.assign(pFileBuf+pos+32, 16);
+                pAreaMesh->LoadAreaMesh(pFileBuf+pos, this, FVF);
+                if (!pAreaMesh->GetlpVB() || !pAreaMesh->GetlpIB()) {
+                    delete pAreaMesh;
+                } else if (i >= m_nObj) {
+                    m_EffMeshs.InsertEnd(pAreaMesh);
+                } else {
+                    m_AreaMeshs.InsertEnd(pAreaMesh);
+                }
+            }
+            break;
+        }
+        pos += next;
+    }
+
+    for (i = 0; i < m_nObj; i++) {
+        float sx = m_pObjInfo[i].mObj.fScaleX;
+        float sy = m_pObjInfo[i].mObj.fScaleY;
+        float sz = m_pObjInfo[i].mObj.fScaleZ;
+        float rx = m_pObjInfo[i].mObj.fRotX;
+        float ry = m_pObjInfo[i].mObj.fRotY;
+        float rz = m_pObjInfo[i].mObj.fRotZ;
+        float tx = m_pObjInfo[i].mObj.fTransX;
+        float ty = m_pObjInfo[i].mObj.fTransY;
+        float tz = m_pObjInfo[i].mObj.fTransZ;
+
+        XMMATRIX xm = XMMatrixIdentity();
+        xm = XMMatrixMultiply(xm, XMMatrixScaling(sx, sy, sz));
+        xm = XMMatrixMultiply(xm, XMMatrixRotationX(rx));
+        xm = XMMatrixMultiply(xm, XMMatrixRotationY(ry));
+        xm = XMMatrixMultiply(xm, XMMatrixRotationZ(rz));
+        xm = XMMatrixMultiply(xm, XMMatrixTranslation(tx, ty, tz));
+        StoreM(m_pObjInfo[i].mMat, xm);
+
+        m_pObjInfo[i].pAreaMesh = NULL;
+        pAreaMesh = (CAreaMesh*)m_AreaMeshs.Top();
+        while (pAreaMesh) {
+            if (!memcmp(pAreaMesh->m_AreaName.c_str(), m_pObjInfo[i].mObj.id, 16)) {
+                m_pObjInfo[i].pAreaMesh = pAreaMesh;
+                break;
+            }
+            pAreaMesh = (CAreaMesh*)pAreaMesh->Next;
+        }
+        if (!pAreaMesh) continue;
+        if ((m_pObjInfo[i].mObj.fe & 0xfff0fff0) != 0) continue;
+    }
+    return hr;
 }
 
-
-//
-//		レンダリング
-unsigned long CArea::Rendering( float PosX, float PosY, float PosZ )
+//======================================================================
+// レンダリング (Phase 5: DX11)
+//======================================================================
+unsigned long CArea::Rendering(float PosX, float PosY, float PosZ)
 {
-	float			DispArea;
-	CAreaMesh		*pAreaMesh;
-	D3DXMATRIX		AreaMatrix;
-	D3DXVECTOR3		mPlate;
-	D3DXVECTOR3		BL,BL2,BL3,BL4,BH,BH2,BH3,BH4;
-	unsigned long	count = 0;
+    if (!m_pVS || !m_pPS || !m_pInputLayout || !m_pCB) return 0;
 
-	//---------------------------------------------------------
-	// ピクセルシェーダー設定
-	//---------------------------------------------------------
-	GetDevice()->SetPixelShader( NULL );
-	//mPlate = g_mAt - g_mEye;D3DXVec3Normalize(&mPlate,&mPlate);
-	GetDevice()->SetRenderState( D3DRS_FOGENABLE,			TRUE );
-	GetDevice()->SetRenderState( D3DRS_ALPHABLENDENABLE,	FALSE );
-	GetDevice()->SetRenderState( D3DRS_STENCILENABLE,		FALSE );
-	GetDevice()->SetRenderState( D3DRS_ALPHATESTENABLE,		FALSE );	
-	GetDevice()->SetRenderState( D3DRS_ALPHAREF ,			0x00 );
-	GetDevice()->SetRenderState( D3DRS_ALPHAFUNC,			D3DCMP_NOTEQUAL );
-	GetDevice()->SetRenderState( D3DRS_DESTBLEND,			D3DBLEND_INVSRCALPHA );
-	GetDevice()->SetRenderState( D3DRS_SRCBLEND,			D3DBLEND_SRCALPHA );
-	GetDevice()->SetRenderState( D3DRS_SHADEMODE,			D3DSHADE_GOURAUD );
+    CAreaMesh* pAreaMesh;
+    float DispArea;
+    unsigned long count = 0;
+    ID3D11DeviceContext* ctx = GetContext();
 
-	//---------------------------------------------------------
-	// シェーダー設定
-	//---------------------------------------------------------
-	GetDevice()->SetTransform(D3DTS_VIEW, &g_mView);
-	GetDevice()->SetTransform(D3DTS_PROJECTION, &g_mProjection);
-	GetDevice()->SetSoftwareVertexProcessing(g_mIsUseSoftware);
-	//GetDevice()->LightEnable(0, FALSE);
-	//GetDevice()->SetRenderState(D3DRS_LIGHTING, FALSE);   // 発電所を回す！
-	// 変換行列
-	D3DXMATRIX mTransform = g_mView * g_mProjection;
-	D3DXMatrixTranspose(&mTransform, &mTransform);
-	// ライトの方向を変換
-	D3DXVECTOR4 LightDir(-g_mLight.Direction.x, -g_mLight.Direction.y, -g_mLight.Direction.z, 0.7f);
+    ctx->VSSetShader(m_pVS, nullptr, 0);
+    ctx->PSSetShader(m_pPS, nullptr, 0);
+    ctx->IASetInputLayout(m_pInputLayout);
+    ctx->VSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->PSSetConstantBuffers(0, 1, &m_pCB);
+    ID3D11SamplerState* samp = GetSampler();
+    ctx->PSSetSamplers(0, 1, &samp);
+    ctx->OMSetDepthStencilState(GetDSSNormal(), 0);
 
-	//GetDevice()->SetVertexShader( NULL );
-	GetDevice()->SetVertexShader(m_hVertexShader);
-	GetDevice()->SetVertexDeclaration(m_VertexFormat);
-	GetDevice()->SetVertexShaderConstantF(5, (float*)&g_mEye, 1);
-	GetDevice()->SetVertexShaderConstantF(4, (float*)&LightDir, 1);
-	GetDevice()->SetVertexShaderConstantF(6, (float*)&mTransform, 4);
+    XMMATRIX view = LoadM(g_mView);
+    XMMATRIX proj = LoadM(g_mProjection);
 
-	//------------------------------------------------------
-	// 各Area 1のレンダリング
-	//------------------------------------------------------
-	for( int i=0 ; i<m_nObj ; i++) {
-		if( (m_pObjInfo[i].mObj.fe&0xfff0ffff)==0 ) { 
-			DispArea = g_mDispArea;
-		} else {
-			DispArea = g_mDispTree;
-		}
-		if( (pAreaMesh = m_pObjInfo[i].pAreaMesh)==NULL )
-			continue;
-		AreaMatrix = m_pObjInfo[i].mMat;
-		D3DXMatrixMultiply(&AreaMatrix,&AreaMatrix,&m_mRootTransform);
-		BL = pAreaMesh->GetBoxLow();
-		BH = pAreaMesh->GetBoxHigh();
-		BL2.x = BL.x; BL2.y = BL.y; BL2.z = BH.z;
-		BL3.x = BH.x; BL3.y = BL.y; BL3.z = BH.z;
-		BL4.x = BH.x; BL4.y = BL.y; BL4.z = BL.z;
-		BH2.x = BH.x; BH2.y = BH.y; BH2.z = BL.z;
-		BH3.x = BL.x; BH3.y = BH.y; BH3.z = BL.z;
-		BH4.x = BL.x; BH4.y = BH.y; BH4.z = BH.z;
-		D3DXVec3TransformCoord(&BH,&BH,&AreaMatrix );
-		D3DXVec3TransformCoord(&BL,&BL,&AreaMatrix );
-		D3DXVec3TransformCoord(&BL2,&BL2,&AreaMatrix );
-		D3DXVec3TransformCoord(&BH2,&BH2,&AreaMatrix );
-		if( Min4(BL.x,BH.x,BL2.x,BH2.x)>PosX+DispArea ) continue;
-		if( Max4(BL.x,BH.x,BL2.x,BH2.x)<PosX-DispArea ) continue;
-		if( Min4(BL.z,BH.z,BL2.z,BH2.z)>PosZ+DispArea ) continue;
-		if( Max4(BL.z,BH.z,BL2.z,BH2.z)<PosZ-DispArea ) continue;
-		
-		//---------------------------------------------------------
-		// 頂点バッファをデバイスに設定
-		//---------------------------------------------------------
-		GetDevice()->SetStreamSource( 0, pAreaMesh->GetlpVB(), 0,D3DXGetFVFVertexSize(pAreaMesh->m_FVF) );
+    for (int i = 0; i < m_nObj; i++) {
+        if ((m_pObjInfo[i].mObj.fe & 0xfff0ffff) == 0)
+            DispArea = g_mDispArea;
+        else
+            DispArea = g_mDispTree;
 
-		//---------------------------------------------------------
-		// インデックスバッファをデバイスに設定
-		//---------------------------------------------------------
-		GetDevice()->SetIndices( pAreaMesh->m_lpIB );
+        if ((pAreaMesh = m_pObjInfo[i].pAreaMesh) == NULL) continue;
 
+        XMMATRIX world = XMMatrixMultiply(LoadM(m_pObjInfo[i].mMat),
+                                          LoadM(m_mRootTransform));
 
-		//---------------------------------------------------------
-		// サーフェイスごとにレンダリング
-		//---------------------------------------------------------
-		// マトリックス設定
-		D3DXMatrixTranspose( &AreaMatrix, &AreaMatrix );
-		GetDevice()->SetVertexShaderConstantF( 10, (float*)&AreaMatrix, 4 );
+        // バウンディングボックスカリング
+        XMFLOAT3 BL  = pAreaMesh->GetBoxLow();
+        XMFLOAT3 BH  = pAreaMesh->GetBoxHigh();
+        XMFLOAT3 BL2 = { BL.x, BL.y, BH.z };
+        XMFLOAT3 BH2 = { BH.x, BH.y, BL.z };
+        StoreV(BL,  XMVector3TransformCoord(LoadV(BL),  world));
+        StoreV(BH,  XMVector3TransformCoord(LoadV(BH),  world));
+        StoreV(BL2, XMVector3TransformCoord(LoadV(BL2), world));
+        StoreV(BH2, XMVector3TransformCoord(LoadV(BH2), world));
+        if (Min4(BL.x,BH.x,BL2.x,BH2.x) > PosX+DispArea) continue;
+        if (Max4(BL.x,BH.x,BL2.x,BH2.x) < PosX-DispArea) continue;
+        if (Min4(BL.z,BH.z,BL2.z,BH2.z) > PosZ+DispArea) continue;
+        if (Max4(BL.z,BH.z,BL2.z,BH2.z) < PosZ-DispArea) continue;
 
-		// レンダリング
-		list<CStream>::iterator its = pAreaMesh->m_LStreams.begin();
-		list<CStream>::iterator ite = pAreaMesh->m_LStreams.end();
-		for( ; its != ite ; its++ ) {	
-			if( its->GetAlphaFlag() & 0x02 || its->GetStencilFlag() ) {
-				GetDevice()->SetRenderState( D3DRS_CULLMODE,		D3DCULL_NONE );
-			}
-			if (its->GetPrimitiveType() == D3DPT_TRIANGLESTRIP) {
-				if (IsMirrorMatrix(&m_pObjInfo[i].mMat)) {
-					GetDevice()->SetRenderState(D3DRS_CULLMODE, D3DCULL_CW);
-				}
-				else {
-					GetDevice()->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
-				}
-			} else if (its->GetPrimitiveType() == D3DPT_TRIANGLELIST) {
-				if (IsMirrorMatrix(&m_pObjInfo[i].mMat)) {
-					GetDevice()->SetRenderState(D3DRS_CULLMODE, D3DCULL_CW);
-				}
-				else {
-					GetDevice()->SetRenderState(D3DRS_CULLMODE, D3DCULL_CCW);
-				}
-			} else {
-				if( (m_pObjInfo[i].mObj.fScaleX*m_pObjInfo[i].mObj.fScaleZ)<0.f )
-					GetDevice()->SetRenderState( D3DRS_CULLMODE,	D3DCULL_CW );
-				else
-					GetDevice()->SetRenderState( D3DRS_CULLMODE,	D3DCULL_CCW );
-			}
-			CTexture *pTexture = (CTexture*)its->GetpTexture();
-			if( (its->GetAlphaFlag() & 0x08) || its->GetStencilFlag() ) {
-				if( its->GetStencilFlag() ) {
-					GetDevice()->SetRenderState( D3DRS_ALPHABLENDENABLE,	FALSE );
-					GetDevice()->SetRenderState( D3DRS_ALPHATESTENABLE,		TRUE );
-				} else {
-					GetDevice()->SetRenderState( D3DRS_ALPHABLENDENABLE,	TRUE );
-					GetDevice()->SetRenderState( D3DRS_ALPHATESTENABLE,		FALSE );
-				}
-				GetDevice()->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-			} else {
-				GetDevice()->SetRenderState( D3DRS_ALPHABLENDENABLE,	FALSE );
-				GetDevice()->SetRenderState( D3DRS_ALPHATESTENABLE,		FALSE );
-				GetDevice()->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
-			}
-			//
-			// c14 : マテリアル
-			//
-			if( pTexture != NULL ) {
-				// デバイスにテクスチャ設定
-				GetDevice()->SetTexture( 0, pTexture->GetTexture() );
-			} else {
-				GetDevice()->SetTexture( 0, NULL );
-			}
-			HRESULT hr = GetDevice()->DrawIndexedPrimitive(
-					its->GetPrimitiveType(),
-					0,
-					0,
-					pAreaMesh->GetNumVertices(),
-					its->GetIndexStart(),
-					its->GetFaceCount() );
+        UINT stride = sizeof(D3DTEXVERTEX), offset = 0;
+        ID3D11Buffer* vb = pAreaMesh->GetlpVB();
+        ctx->IASetVertexBuffers(0, 1, &vb, &stride, &offset);
+        ctx->IASetIndexBuffer(pAreaMesh->GetlpIB(), DXGI_FORMAT_R16_UINT, 0);
 
-		}
-		count += pAreaMesh->GetNumFaces();
+        XMMATRIX wvp = XMMatrixMultiply(world, XMMatrixMultiply(view, proj));
+        bool isMirror = IsMirrorMatrix(&m_pObjInfo[i].mMat);
 
-	}
-	//---------------------------------------------------------
-	// 後処理
-	//-----------------------------------------------------------
-	GetDevice()->SetRenderState( D3DRS_ALPHABLENDENABLE,	FALSE );
-	GetDevice()->SetRenderState( D3DRS_ALPHATESTENABLE,		FALSE );	
-	GetDevice()->SetRenderState( D3DRS_FOGENABLE,			FALSE );
-	//GetDevice()->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-	return count;
+        for (auto& s : pAreaMesh->m_LStreams) {
+            // ラスタライザ
+            if (s.GetAlphaFlag() & 0x02 || s.GetStencilFlag())
+                ctx->RSSetState(GetRastNone());
+            else if (isMirror)
+                ctx->RSSetState(GetRastCW());
+            else
+                ctx->RSSetState(GetRastCCW());
+
+            // ブレンド
+            float bf[4] = {};
+            if ((s.GetAlphaFlag() & 0x08) && !s.GetStencilFlag())
+                ctx->OMSetBlendState(GetBlendAlpha(), bf, 0xFFFFFFFF);
+            else
+                ctx->OMSetBlendState(GetBlendNone(), bf, 0xFFFFFFFF);
+
+            // 定数バッファ更新
+            D3D11_MAPPED_SUBRESOURCE msr = {};
+            ctx->Map(m_pCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
+            CBData* cb = (CBData*)msr.pData;
+            XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
+            cb->mUV[0] = 0.f; cb->mUV[1] = 0.f;
+            cb->padding[0] = 0.f; cb->padding[1] = 0.f;
+            cb->mCOL = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
+            ctx->Unmap(m_pCB, 0);
+
+            // テクスチャ
+            CTexture* pTex = s.GetpTexture();
+            ID3D11ShaderResourceView* srv = pTex ? pTex->GetTexture() : nullptr;
+            ctx->PSSetShaderResources(0, 1, &srv);
+
+            ctx->IASetPrimitiveTopology(s.GetPrimitiveType());
+            ctx->DrawIndexed((UINT)s.GetFaceCount() + 2, (UINT)s.GetIndexStart(), 0);
+        }
+        count += pAreaMesh->GetNumFaces();
+    }
+
+    float bf[4] = {};
+    ctx->OMSetBlendState(GetBlendNone(), bf, 0xFFFFFFFF);
+    return count;
 }
 
-//		MAPデータ読み込み
+//======================================================================
+// MAPデータ読み込み
+//======================================================================
 bool CArea::LoadMAP()
 {
-	unsigned long FVF = (D3DFVF_XYZ|D3DFVF_NORMAL|D3DFVF_DIFFUSE|D3DFVF_TEX1);
-	char FileName[512],FileName2[512];
+    unsigned long FVF = 0x152; // XYZ|NORMAL|DIFFUSE|TEX1
+    char FileName[512], FileName2[512];
 
-	// データ初期化
-	InitData();
+    InitData();
+    if ((GetArea() & 0xeffff) == 0) return true;
 
-	if( (GetArea()&0xeffff) == 0 ) return true;
+    GetFileNameFromDno(FileName,  GetArea());
+    GetFileNameFromDno(FileName2, ConvertStr2Dno("0-0"));
 
-	//  ファイルのロード
-	GetFileNameFromDno(FileName,GetArea());
-	GetFileNameFromDno(FileName2,ConvertStr2Dno("0-0"));
-	//  ファイルのロード
-	HRESULT hr;
-	//　テクスチャ、メッシュのロード
-	hr = LoadTextureFromFile( FileName2 );
-	if( hr ) return false;
-	hr = LoadTextureFromFile( FileName );
-	if( hr ) return false;
-	hr = LoadAreaFromFile( FileName, FVF );
-	if( hr ) return false;
-	InitEffectModel();
-	LoadEffectModelFromFile(FileName);
-	LoadEffectModelFromFile(FileName2);
-	LoadEffectModel2FromFile(FileName);
-	LoadEffectModel2FromFile(FileName2);
-	InitEffect();
-	LoadEffectFromFile(FileName);
-	//InitSchedule();
-	//LoadScheduleFromFile(FileName);
-	return true;
-}
-
-
-//======================================================================
-//		MQOセーブ共通ヘルパー
-//======================================================================
-void CArea::PrepareMQOPath(char* path, char* dirPath, const char* FPath, const char* FName) {
-	char* ptr;
-	char tempFName[256];
-	strcpy(dirPath, FPath);
-	strcpy(tempFName, FName);
-	if ((ptr = strrstr(dirPath, tempFName))) *ptr = '\0';
-	if ((ptr = strrstr(tempFName, ".mqo"))) *ptr = '\0';
-	sprintf(path, "%s%s.mqo", dirPath, tempFName);
-}
-
-void CArea::WriteMQOHeader(FILE* fd, CList& textures, const char* dirPath, bool isEffectModel) {
-	fprintf(fd, "Metasequoia Document\nFormat Text Ver 1.0\n\nScene {\n");
-	fprintf(fd, "	pos 0.0000 0.0000 5000.0000\n");
-	fprintf(fd, "	lookat 0.0000 0.0000 0.0000\n");
-	fprintf(fd, "	head 0.0000\n");
-	fprintf(fd, "	pich 0.0000\n");
-	fprintf(fd, "	ortho 1\n");
-	fprintf(fd, "	zoom2 2.0000\n");
-	fprintf(fd, "	amb 0.250 0.250 0.250\n}\nMaterial ");
-	fprintf(fd, "%d {\n", textures.Count);
-	CTexture* pTexture = (CTexture*)textures.Top();
-	while (pTexture != NULL) {
-		char texName[256];
-		char texpath[256];
-		if (isEffectModel) {
-			strcpy(texName, pTexture->m_TexName.c_str());
-		} else {
-			strcpy(texName, pTexture->GetTexName());
-		}
-		Trim(texName);
-		if (isEffectModel) {
-			fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
-		} else {
-			fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
-		}
-		fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.png\")\n", texName);
-		sprintf(texpath, "%s%s.png", dirPath, texName);
-		D3DXSaveTextureToFile(texpath, D3DXIFF_PNG, pTexture->GetTexture(), NULL);
-		pTexture = (CTexture*)pTexture->Next;
-	}
-	fprintf(fd, "}\n");
-}
-
-void CArea::WriteMQOAreaMesh(FILE* fd, CAreaMesh* pAreaMesh, const D3DXMATRIX& AreaMatrix, bool useMirrorLogic, bool isEffect) {
-	char areaNameBuf[18];
-	strncpy(areaNameBuf, pAreaMesh->m_AreaName.c_str(), 17);
-	areaNameBuf[17] = '\0';
-	char* ptr = areaNameBuf;
-	for (int i = 0; i < 18; i++) {
-		if (*ptr++ == 0x20) *(ptr - 1) = 0x0;
-	}
-
-	D3DTEXVERTEX* pV;
-	WORD* pIndex, *pI;
-	pAreaMesh->m_lpVB->Lock(0, pAreaMesh->m_VBSize, (void**)&pV, D3DLOCK_READONLY);
-	pAreaMesh->m_lpIB->Lock(0, pAreaMesh->m_IBSize, (void**)&pIndex, D3DLOCK_READONLY);
-
-	list<CStream>::iterator its2 = pAreaMesh->m_LStreams.begin();
-	list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
-	for (int count = 0; its2 != ite2; its2++, count++) {
-		fprintf(fd, "Object \"%s%02d\" {\n", areaNameBuf, count);
-		fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
-		pI = pIndex + its2->GetIndexStart();
-		int idxmin = 65535, idxmax = 0;
-		for (unsigned int i = 0; i < its2->GetFaceCount() + 2; i++) {
-			WORD i1 = *pI++;
-			if (i1 > idxmax) idxmax = i1;
-			if (i1 < idxmin) idxmin = i1;
-		}
-		fprintf(fd, "vertex %d {\n", idxmax - idxmin + 1);
-		for (unsigned long verCnt = idxmin; verCnt <= idxmax; verCnt++) {
-			D3DXVECTOR3 mVer = (pV + verCnt)->v;
-			D3DXVec3TransformCoord(&mVer, &mVer, &AreaMatrix);
-			if (isEffect) {
-				fprintf(fd, "        %4.4f %4.4f %4.4f\n", mVer.x * 10., mVer.y * 10., mVer.z * 10.);
-			} else {
-				fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x * 10., mVer.y * 10., mVer.z * 10.);
-			}
-		}
-		fprintf(fd, "\t}\n");
-
-		if (its2->GetPrimitiveType() == D3DPT_TRIANGLESTRIP) {
-			pI = pIndex + its2->GetIndexStart();
-			int nFace = 0;
-			for (int nVer = 0; nVer < its2->GetFaceCount() + 2;) {
-				int i1 = *pI++ - idxmin; nVer++;
-				int i2 = *pI++ - idxmin; nVer++;
-				while (nVer < its2->GetFaceCount() + 2) {
-					int i3 = *pI++ - idxmin; nVer++;
-					if (i2 == i3) { pI++; nVer++; break; }
-					nFace++; i1 = i2; i2 = i3;
-				}
-			}
-			fprintf(fd, "face %d {\n", nFace);
-			pI = pIndex + its2->GetIndexStart();
-			for (int nVer = 0; nVer < its2->GetFaceCount() + 2;) {
-				int i1 = (*pI++) - idxmin; nVer++;
-				int i2 = (*pI++) - idxmin; nVer++;
-				while (nVer < its2->GetFaceCount() + 2) {
-					int i3 = (*pI++) - idxmin; nVer++;
-					if (i2 == i3) { pI++; nVer++; break; }
-					int t1, t2, t3;
-					if (nVer % 2) { t1 = i3; t2 = i2; t3 = i1; }
-					else { t1 = i1; t2 = i2; t3 = i3; }
-
-					if (useMirrorLogic && IsMirrorMatrix(&AreaMatrix)) {
-						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-							t1, t2, t3, its2->m_TexNo,
-							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-							(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-					} else if (useMirrorLogic) {
-						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-							t1, t3, t2, its2->m_TexNo,
-							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t3)->tu,
-							(pV + idxmin + t3)->tv, (pV + idxmin + t2)->tu, (pV + idxmin + t2)->tv);
-					} else {
-						fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-							t1, t2, t3, its2->m_TexNo,
-							(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-							(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-					}
-					i1 = i2; i2 = i3;
-				}
-			}
-			fprintf(fd, "\t}\n");
-		} else if (its2->GetPrimitiveType() == D3DPT_TRIANGLELIST) {
-			fprintf(fd, "face %d {\n", its2->GetFaceCount());
-			pI = pIndex + its2->GetIndexStart();
-			for (unsigned int i = 0; i < its2->GetFaceCount(); i++) {
-				int i1 = (*pI++) - idxmin; int i2 = (*pI++) - idxmin; int i3 = (*pI++) - idxmin;
-				int t1 = i3, t2 = i2, t3 = i1;
-				if (useMirrorLogic && IsMirrorMatrix(&AreaMatrix)) {
-					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-						t1, t2, t3, its2->m_TexNo,
-						(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-						(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-				} else if (useMirrorLogic) {
-					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-						t1, t3, t2, its2->m_TexNo,
-						(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t3)->tu,
-						(pV + idxmin + t3)->tv, (pV + idxmin + t2)->tu, (pV + idxmin + t2)->tv);
-				} else {
-					fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-						t1, t2, t3, its2->m_TexNo,
-						(pV + idxmin + t1)->tu, (pV + idxmin + t1)->tv, (pV + idxmin + t2)->tu,
-						(pV + idxmin + t2)->tv, (pV + idxmin + t3)->tu, (pV + idxmin + t3)->tv);
-				}
-			}
-			fprintf(fd, "\t}\n");
-		}
-		fprintf(fd, "}\n");
-	}
-	pAreaMesh->m_lpIB->Unlock();
-	pAreaMesh->m_lpVB->Unlock();
-}
-
-void CArea::WriteMQOEffectModel(FILE* fd, CEffectModel* pEffMdl, const D3DXMATRIX& EffectMatrix) {
-	char objName[256];
-	strcpy(objName, pEffMdl->m_Name.c_str()); Trim(objName);
-	fprintf(fd, "Object \"%s\" {\n", objName);
-	fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
-
-	EFFECTVERTEX* pVertex, *pV;
-	WORD* pIndex, *pI;
-	pEffMdl->m_lpVB->Lock(0, pEffMdl->m_VBSize, (void**)&pVertex, D3DLOCK_READONLY);
-	pEffMdl->m_lpIB->Lock(0, pEffMdl->m_IBSize, (void**)&pIndex, D3DLOCK_READONLY);
-
-	fprintf(fd, "vertex %d {\n", pEffMdl->m_NumVertices);
-	pV = pVertex;
-	for (int i = 0; i <= pEffMdl->m_NumVertices; i++, pV++) {
-		D3DXVECTOR3 mVer(pV->x, pV->y, pV->z);
-		D3DXVec3TransformCoord(&mVer, &mVer, &EffectMatrix);
-		fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x * 10., mVer.y * 10., mVer.z * 10.);
-	}
-	fprintf(fd, "\t}\n");
-
-	fprintf(fd, "face %d {\n", pEffMdl->m_NumFaces);
-	pI = pIndex;
-	for (int i = 0; i < pEffMdl->m_NumFaces; i++) {
-		int i1 = *pI++; int i2 = *pI++; int i3 = *pI++;
-		int t1 = i3, t2 = i2, t3 = i1;
-		fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
-			t1, t2, t3, pEffMdl->m_texNo,
-			(pVertex + t1)->u, (pVertex + t1)->v, (pVertex + t2)->u,
-			(pVertex + t2)->v, (pVertex + t3)->u, (pVertex + t3)->v);
-	}
-	fprintf(fd, "\t}\n}\n");
-
-	pEffMdl->m_lpIB->Unlock();
-	pEffMdl->m_lpVB->Unlock();
+    HRESULT hr;
+    hr = LoadTextureFromFile(FileName2); if (hr) return false;
+    hr = LoadTextureFromFile(FileName);  if (hr) return false;
+    hr = LoadAreaFromFile(FileName, FVF); if (hr) return false;
+    InitEffectModel();
+    LoadEffectModelFromFile(FileName);
+    LoadEffectModelFromFile(FileName2);
+    LoadEffectModel2FromFile(FileName);
+    LoadEffectModel2FromFile(FileName2);
+    InitEffect();
+    LoadEffectFromFile(FileName);
+    return true;
 }
 
 //======================================================================
-//		MQOセーブ		通常データをMQOフォーマットで出力します
+// MQO セーブ共通ヘルパー
 //======================================================================
-bool CArea::saveMQO(char *FPath, char *FName, float posX, float posY, float posZ)
+void CArea::PrepareMQOPath(char* path, char* dirPath, const char* FPath, const char* FName)
 {
-	FILE	*fd;
-	char	path[256], dirPath[256];
-	CAreaMesh		*pAreaMesh;
-	D3DXMATRIX		RootMatrix, AreaMatrix;
-	float			DispArea;
-	D3DXVECTOR3		BL, BH, BL2, BH2;
-
-	D3DXMatrixRotationZ(&RootMatrix, PAI);
-	PrepareMQOPath(path, dirPath, FPath, FName);
-
-	if ((fd = fopen(path, "w")) == NULL) return false;
-	WriteMQOHeader(fd, m_Textures, dirPath, false);
-
-	for (int num = 0; num < m_nObj; num++) {
-		if ((m_pObjInfo[num].mObj.fe & 0xfff0ffff) == 0) {
-			DispArea = g_mDispArea;
-		} else {
-			DispArea = g_mDispTree;
-		}
-		if ((pAreaMesh = m_pObjInfo[num].pAreaMesh) == NULL) continue;
-		AreaMatrix = m_pObjInfo[num].mMat;
-		D3DXMatrixMultiply(&AreaMatrix, &AreaMatrix, &RootMatrix);
-		
-		BL = pAreaMesh->GetBoxLow();
-		BH = pAreaMesh->GetBoxHigh();
-		BL2.x = BL.x; BL2.y = BL.y; BL2.z = BH.z;
-		BH2.x = BH.x; BH2.y = BH.y; BH2.z = BL.z;
-		D3DXVec3TransformCoord(&BH, &BH, &AreaMatrix);
-		D3DXVec3TransformCoord(&BL, &BL, &AreaMatrix);
-		D3DXVec3TransformCoord(&BL2, &BL2, &AreaMatrix);
-		D3DXVec3TransformCoord(&BH2, &BH2, &AreaMatrix);
-
-		if (Min4(BL.x, BH.x, BL2.x, BH2.x) > posX + DispArea) continue;
-		if (Max4(BL.x, BH.x, BL2.x, BH2.x) < posX - DispArea) continue;
-		if (Min4(BL.z, BH.z, BL2.z, BH2.z) > posZ + DispArea) continue;
-		if (Max4(BL.z, BH.z, BL2.z, BH2.z) < posZ - DispArea) continue;
-
-		WriteMQOAreaMesh(fd, pAreaMesh, AreaMatrix, true, false);
-	}
-	fprintf(fd, "EOF");
-	fclose(fd);
-	return true;
+    char* ptr;
+    char tempFName[256];
+    strcpy(dirPath, FPath);
+    strcpy(tempFName, FName);
+    if ((ptr = strrstr(dirPath, tempFName))) *ptr = '\0';
+    if ((ptr = strrstr(tempFName, ".mqo"))) *ptr = '\0';
+    sprintf(path, "%s%s.mqo", dirPath, tempFName);
 }
 
-//======================================================================
-//		MQOセーブ エフェクトデータすべてをMQOフォーマットで出力します
-//======================================================================
-bool CArea::saveMQO2(char *FPath, char *FName, float posX, float posY, float posZ)
+void CArea::WriteMQOHeader(FILE* fd, CList& textures, const char* dirPath, bool isEffectModel)
 {
-	FILE	*fd;
-	char	path[256], dirPath[256];
-	CEffect         *pEffect;
-	CAreaMesh		*pAreaMesh;
-	D3DXMATRIX		RootMatrix, AreaMatrix;
-
-	D3DXMatrixRotationZ(&RootMatrix, PAI);
-	PrepareMQOPath(path, dirPath, FPath, FName);
-
-	if ((fd = fopen(path, "w")) == NULL) return false;
-	WriteMQOHeader(fd, m_Textures, dirPath, false);
-
-	pEffect = (CEffect*)m_Effects.Top();
-	while (pEffect) {
-		if (memcmp(pEffect->m_class.c_str(), g_className, 4)) {
-			pEffect = (CEffect*)pEffect->Next;
-			continue;
-		}
-		if ((pAreaMesh = pEffect->m_pAreaMesh) == NULL) {
-			pEffect = (CEffect*)pEffect->Next;
-			continue;
-		} else {
-			AreaMatrix = pEffect->m_mRootTransform;
-			AreaMatrix *= RootMatrix;
-		}
-		WriteMQOAreaMesh(fd, pAreaMesh, AreaMatrix, false, true);
-		pEffect = (CEffect*)pEffect->Next;
-	}
-	fprintf(fd, "EOF");
-	fclose(fd);
-	return true;
+    fprintf(fd, "Metasequoia Document\nFormat Text Ver 1.0\n\nScene {\n");
+    fprintf(fd, "	pos 0.0000 0.0000 5000.0000\n");
+    fprintf(fd, "	lookat 0.0000 0.0000 0.0000\n");
+    fprintf(fd, "	head 0.0000\n");
+    fprintf(fd, "	pich 0.0000\n");
+    fprintf(fd, "	ortho 1\n");
+    fprintf(fd, "	zoom2 2.0000\n");
+    fprintf(fd, "	amb 0.250 0.250 0.250\n}\nMaterial ");
+    fprintf(fd, "%d {\n", textures.Count);
+    CTexture* pTexture = (CTexture*)textures.Top();
+    while (pTexture != NULL) {
+        char texName[256];
+        if (isEffectModel)
+            strcpy(texName, pTexture->m_TexName.c_str());
+        else
+            strcpy(texName, pTexture->GetTexName());
+        Trim(texName);
+        if (isEffectModel)
+            fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
+        else
+            fprintf(fd, "    \"%s\" shader(3) dbls(1) col(1.000 1.000 1.000 1.000)", texName);
+        fprintf(fd, " dif(1.000) amb(0.250) emi(0.250) spc(0.000) power(5.00) tex(\"%s.png\")\n", texName);
+        char texpath[256];
+        sprintf(texpath, "%s%s.png", dirPath, texName);
+        SaveTextureToPNG(texpath, pTexture);
+        pTexture = (CTexture*)pTexture->Next;
+    }
+    fprintf(fd, "}\n");
 }
-//======================================================================
-//		MQOセーブ データをMQOフォーマットで出力します
-//======================================================================
-bool CArea::saveMQO3(char *FPath, char *FName)
+
+void CArea::WriteMQOAreaMesh(FILE* fd, CAreaMesh* pAreaMesh,
+                             const XMFLOAT4X4& AreaMatrix,
+                             bool useMirrorLogic, bool isEffect)
 {
-	FILE	*fd;
-	char	path[256], dirPath[256];
-	CEffect         *pEffect;
-	CEffectModel	*pEffMdl;
-	D3DXMATRIX		RootMatrix, EffectMatrix;
+    char areaNameBuf[18];
+    strncpy(areaNameBuf, pAreaMesh->m_AreaName.c_str(), 17);
+    areaNameBuf[17] = '\0';
+    for (int i = 0; i < 18; i++)
+        if (areaNameBuf[i] == 0x20) areaNameBuf[i] = 0;
 
-	D3DXMatrixRotationZ(&RootMatrix, PAI);
-	PrepareMQOPath(path, dirPath, FPath, FName);
+    const D3DTEXVERTEX* pV     = reinterpret_cast<const D3DTEXVERTEX*>(pAreaMesh->m_cpuVB.data());
+    const WORD*         pIndex = reinterpret_cast<const WORD*>(pAreaMesh->m_cpuIB.data());
 
-	if ((fd = fopen(path, "w")) == NULL) return false;
-	WriteMQOHeader(fd, m_Textures, dirPath, true);
+    list<CStream>::iterator its2 = pAreaMesh->m_LStreams.begin();
+    list<CStream>::iterator ite2 = pAreaMesh->m_LStreams.end();
+    for (int count = 0; its2 != ite2; its2++, count++) {
+        fprintf(fd, "Object \"%s%02d\" {\n", areaNameBuf, count);
+        fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 1.000 1.000 1.000\n   color_type 0\n");
 
-	pEffect = (CEffect*)m_Effects.Top();
-	while (pEffect) {
-		if (memcmp(pEffect->m_class.c_str(), g_className, 4)) {
-			pEffect = (CEffect*)pEffect->Next;
-			continue;
-		}
-		if ((pEffMdl = pEffect->m_pEffectModel) == NULL) {
-			pEffect = (CEffect*)pEffect->Next;
-			continue;
-		} else {
-			EffectMatrix = pEffect->m_mRootTransform;
-			EffectMatrix *= RootMatrix;
-		}
-		WriteMQOEffectModel(fd, pEffMdl, EffectMatrix);
-		pEffect = (CEffect*)pEffect->Next;
-	}
-	fprintf(fd, "EOF");
-	fclose(fd);
-	return true;
+        const WORD* pI = pIndex + its2->GetIndexStart();
+        int idxmin = 65535, idxmax = 0;
+        for (unsigned int i = 0; i < its2->GetFaceCount()+2; i++) {
+            WORD i1 = *pI++;
+            if (i1 > idxmax) idxmax = i1;
+            if (i1 < idxmin) idxmin = i1;
+        }
+        fprintf(fd, "vertex %d {\n", idxmax - idxmin + 1);
+        for (unsigned long verCnt = idxmin; verCnt <= (unsigned long)idxmax; verCnt++) {
+            XMFLOAT3 mVer;
+            StoreV(mVer, XMVector3TransformCoord(LoadV((pV+verCnt)->v), LoadM(AreaMatrix)));
+            if (isEffect)
+                fprintf(fd, "        %4.4f %4.4f %4.4f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
+            else
+                fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
+        }
+        fprintf(fd, "\t}\n");
+
+        if (its2->GetPrimitiveType() == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP) {
+            pI = pIndex + its2->GetIndexStart();
+            int nFace = 0;
+            for (int nVer = 0; nVer < (int)its2->GetFaceCount()+2; ) {
+                int i1 = *pI++ - idxmin; nVer++;
+                int i2 = *pI++ - idxmin; nVer++;
+                while (nVer < (int)its2->GetFaceCount()+2) {
+                    int i3 = *pI++ - idxmin; nVer++;
+                    if (i2 == i3) { pI++; nVer++; break; }
+                    nFace++; i1 = i2; i2 = i3;
+                }
+            }
+            fprintf(fd, "face %d {\n", nFace);
+            pI = pIndex + its2->GetIndexStart();
+            for (int nVer = 0; nVer < (int)its2->GetFaceCount()+2; ) {
+                int i1 = (*pI++) - idxmin; nVer++;
+                int i2 = (*pI++) - idxmin; nVer++;
+                while (nVer < (int)its2->GetFaceCount()+2) {
+                    int i3 = (*pI++) - idxmin; nVer++;
+                    if (i2 == i3) { pI++; nVer++; break; }
+                    int t1, t2, t3;
+                    if (nVer % 2) { t1 = i3; t2 = i2; t3 = i1; }
+                    else          { t1 = i1; t2 = i2; t3 = i3; }
+                    if (useMirrorLogic && IsMirrorMatrix(&AreaMatrix)) {
+                        fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+                            t1,t2,t3, its2->m_TexNo,
+                            (pV+idxmin+t1)->tu,(pV+idxmin+t1)->tv,
+                            (pV+idxmin+t2)->tu,(pV+idxmin+t2)->tv,
+                            (pV+idxmin+t3)->tu,(pV+idxmin+t3)->tv);
+                    } else if (useMirrorLogic) {
+                        fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+                            t1,t3,t2, its2->m_TexNo,
+                            (pV+idxmin+t1)->tu,(pV+idxmin+t1)->tv,
+                            (pV+idxmin+t3)->tu,(pV+idxmin+t3)->tv,
+                            (pV+idxmin+t2)->tu,(pV+idxmin+t2)->tv);
+                    } else {
+                        fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+                            t1,t2,t3, its2->m_TexNo,
+                            (pV+idxmin+t1)->tu,(pV+idxmin+t1)->tv,
+                            (pV+idxmin+t2)->tu,(pV+idxmin+t2)->tv,
+                            (pV+idxmin+t3)->tu,(pV+idxmin+t3)->tv);
+                    }
+                    i1 = i2; i2 = i3;
+                }
+            }
+            fprintf(fd, "\t}\n");
+        } else if (its2->GetPrimitiveType() == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) {
+            fprintf(fd, "face %d {\n", its2->GetFaceCount());
+            pI = pIndex + its2->GetIndexStart();
+            for (unsigned int i = 0; i < its2->GetFaceCount(); i++) {
+                int i1 = (*pI++)-idxmin, i2 = (*pI++)-idxmin, i3 = (*pI++)-idxmin;
+                int t1 = i3, t2 = i2, t3 = i1;
+                if (useMirrorLogic && IsMirrorMatrix(&AreaMatrix)) {
+                    fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+                        t1,t2,t3, its2->m_TexNo,
+                        (pV+idxmin+t1)->tu,(pV+idxmin+t1)->tv,
+                        (pV+idxmin+t2)->tu,(pV+idxmin+t2)->tv,
+                        (pV+idxmin+t3)->tu,(pV+idxmin+t3)->tv);
+                } else if (useMirrorLogic) {
+                    fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+                        t1,t3,t2, its2->m_TexNo,
+                        (pV+idxmin+t1)->tu,(pV+idxmin+t1)->tv,
+                        (pV+idxmin+t3)->tu,(pV+idxmin+t3)->tv,
+                        (pV+idxmin+t2)->tu,(pV+idxmin+t2)->tv);
+                } else {
+                    fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+                        t1,t2,t3, its2->m_TexNo,
+                        (pV+idxmin+t1)->tu,(pV+idxmin+t1)->tv,
+                        (pV+idxmin+t2)->tu,(pV+idxmin+t2)->tv,
+                        (pV+idxmin+t3)->tu,(pV+idxmin+t3)->tv);
+                }
+            }
+            fprintf(fd, "\t}\n");
+        }
+        fprintf(fd, "}\n");
+    }
 }
 
+void CArea::WriteMQOEffectModel(FILE* fd, CEffectModel* pEffMdl,
+                                const XMFLOAT4X4& EffectMatrix)
+{
+    char objName[256];
+    strcpy(objName, pEffMdl->m_Name.c_str()); Trim(objName);
+    fprintf(fd, "Object \"%s\" {\n", objName);
+    fprintf(fd, "    visivle 15\n    locking 0\n    shading 1\n   facet 59.5\n    color 0.898 0.498 0.698\n   color_type 0\n");
+
+    const EFFECTVERTEX* pVertex = reinterpret_cast<const EFFECTVERTEX*>(pEffMdl->m_cpuVB.data());
+    const WORD*         pIndex  = reinterpret_cast<const WORD*>(pEffMdl->m_cpuIB.data());
+
+    fprintf(fd, "vertex %d {\n", pEffMdl->m_NumVertices);
+    for (unsigned long i = 0; i <= pEffMdl->m_NumVertices; i++) {
+        XMFLOAT3 pos = { pVertex[i].x, pVertex[i].y, pVertex[i].z };
+        XMFLOAT3 mVer;
+        StoreV(mVer, XMVector3TransformCoord(LoadV(pos), LoadM(EffectMatrix)));
+        fprintf(fd, "        %5.5f %5.5f %5.5f\n", mVer.x*10., mVer.y*10., mVer.z*10.);
+    }
+    fprintf(fd, "\t}\n");
+
+    fprintf(fd, "face %d {\n", pEffMdl->m_NumFaces);
+    const WORD* pI = pIndex;
+    for (unsigned long i = 0; i < pEffMdl->m_NumFaces; i++) {
+        int i1 = *pI++, i2 = *pI++, i3 = *pI++;
+        int t1 = i3, t2 = i2, t3 = i1;
+        fprintf(fd, "\t\t3 V(%3d %3d %3d) M(%2d) UV(%1.5f %1.5f %1.5f %1.5f %1.5f %1.5f)\n",
+            t1,t2,t3, pEffMdl->m_texNo,
+            pVertex[t1].u, pVertex[t1].v, pVertex[t2].u,
+            pVertex[t2].v, pVertex[t3].u, pVertex[t3].v);
+    }
+    fprintf(fd, "\t}\n}\n");
+}
+
+//======================================================================
+// MQOセーブ — 通常エリアデータ
+//======================================================================
+bool CArea::saveMQO(char* FPath, char* FName, float posX, float posY, float posZ)
+{
+    FILE* fd;
+    char  path[256], dirPath[256];
+    CAreaMesh* pAreaMesh;
+    float DispArea;
+
+    XMFLOAT4X4 RootMatrix;
+    StoreM(RootMatrix, XMMatrixRotationZ(PAI));
+    PrepareMQOPath(path, dirPath, FPath, FName);
+    if ((fd = fopen(path, "w")) == NULL) return false;
+    WriteMQOHeader(fd, m_Textures, dirPath, false);
+
+    for (int num = 0; num < m_nObj; num++) {
+        if ((m_pObjInfo[num].mObj.fe & 0xfff0ffff) == 0)
+            DispArea = g_mDispArea;
+        else
+            DispArea = g_mDispTree;
+        if ((pAreaMesh = m_pObjInfo[num].pAreaMesh) == NULL) continue;
+
+        XMFLOAT4X4 AreaMatrix = m_pObjInfo[num].mMat;
+        StoreM(AreaMatrix, XMMatrixMultiply(LoadM(AreaMatrix), LoadM(RootMatrix)));
+
+        XMFLOAT3 BL  = pAreaMesh->GetBoxLow();
+        XMFLOAT3 BH  = pAreaMesh->GetBoxHigh();
+        XMFLOAT3 BL2 = { BL.x, BL.y, BH.z };
+        XMFLOAT3 BH2 = { BH.x, BH.y, BL.z };
+        XMMATRIX am = LoadM(AreaMatrix);
+        StoreV(BL,  XMVector3TransformCoord(LoadV(BL),  am));
+        StoreV(BH,  XMVector3TransformCoord(LoadV(BH),  am));
+        StoreV(BL2, XMVector3TransformCoord(LoadV(BL2), am));
+        StoreV(BH2, XMVector3TransformCoord(LoadV(BH2), am));
+        if (Min4(BL.x,BH.x,BL2.x,BH2.x) > posX+DispArea) continue;
+        if (Max4(BL.x,BH.x,BL2.x,BH2.x) < posX-DispArea) continue;
+        if (Min4(BL.z,BH.z,BL2.z,BH2.z) > posZ+DispArea) continue;
+        if (Max4(BL.z,BH.z,BL2.z,BH2.z) < posZ-DispArea) continue;
+
+        WriteMQOAreaMesh(fd, pAreaMesh, AreaMatrix, true, false);
+    }
+    fprintf(fd, "EOF");
+    fclose(fd);
+    return true;
+}
+
+//======================================================================
+// MQOセーブ — エフェクトエリアデータ
+//======================================================================
+bool CArea::saveMQO2(char* FPath, char* FName, float posX, float posY, float posZ)
+{
+    FILE* fd;
+    char  path[256], dirPath[256];
+    CEffect* pEffect;
+    CAreaMesh* pAreaMesh;
+
+    XMFLOAT4X4 RootMatrix;
+    StoreM(RootMatrix, XMMatrixRotationZ(PAI));
+    PrepareMQOPath(path, dirPath, FPath, FName);
+    if ((fd = fopen(path, "w")) == NULL) return false;
+    WriteMQOHeader(fd, m_Textures, dirPath, false);
+
+    pEffect = (CEffect*)m_Effects.Top();
+    while (pEffect) {
+        if (memcmp(pEffect->m_class.c_str(), g_className, 4)) {
+            pEffect = (CEffect*)pEffect->Next; continue;
+        }
+        if ((pAreaMesh = pEffect->m_pAreaMesh) == NULL) {
+            pEffect = (CEffect*)pEffect->Next; continue;
+        }
+        XMFLOAT4X4 AreaMatrix = pEffect->m_mRootTransform;
+        StoreM(AreaMatrix, XMMatrixMultiply(LoadM(AreaMatrix), LoadM(RootMatrix)));
+        WriteMQOAreaMesh(fd, pAreaMesh, AreaMatrix, false, true);
+        pEffect = (CEffect*)pEffect->Next;
+    }
+    fprintf(fd, "EOF");
+    fclose(fd);
+    return true;
+}
+
+//======================================================================
+// MQOセーブ — エフェクトモデルデータ
+//======================================================================
+bool CArea::saveMQO3(char* FPath, char* FName)
+{
+    FILE* fd;
+    char  path[256], dirPath[256];
+    CEffect* pEffect;
+    CEffectModel* pEffMdl;
+
+    XMFLOAT4X4 RootMatrix;
+    StoreM(RootMatrix, XMMatrixRotationZ(PAI));
+    PrepareMQOPath(path, dirPath, FPath, FName);
+    if ((fd = fopen(path, "w")) == NULL) return false;
+    WriteMQOHeader(fd, m_Textures, dirPath, true);
+
+    pEffect = (CEffect*)m_Effects.Top();
+    while (pEffect) {
+        if (memcmp(pEffect->m_class.c_str(), g_className, 4)) {
+            pEffect = (CEffect*)pEffect->Next; continue;
+        }
+        if ((pEffMdl = pEffect->m_pEffectModel) == NULL) {
+            pEffect = (CEffect*)pEffect->Next; continue;
+        }
+        XMFLOAT4X4 EffectMatrix = pEffect->m_mRootTransform;
+        StoreM(EffectMatrix, XMMatrixMultiply(LoadM(EffectMatrix), LoadM(RootMatrix)));
+        WriteMQOEffectModel(fd, pEffMdl, EffectMatrix);
+        pEffect = (CEffect*)pEffect->Next;
+    }
+    fprintf(fd, "EOF");
+    fclose(fd);
+    return true;
+}

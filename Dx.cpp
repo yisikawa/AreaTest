@@ -3,149 +3,158 @@
 //======================================================================
 // INCLUDE
 //======================================================================
-#include "WinMain.h"
+#include <windows.h>
 #include "Dx.h"
-
 
 //======================================================================
 // GLOBAL
 //======================================================================
-
-//
-
-
+static ID3D11Device*            g_pDevice       = nullptr;
+static ID3D11DeviceContext*     g_pContext       = nullptr;
+static IDXGISwapChain*          g_pSwapChain     = nullptr;
+static ID3D11RenderTargetView*  g_pRTV           = nullptr;
+static ID3D11DepthStencilView*  g_pDSV           = nullptr;
+static ID3D11Texture2D*         g_pDepthStencil  = nullptr;
 
 //======================================================================
-//		DirectXGraphics初期化
+// アクセサ
 //======================================================================
-bool InitD3D( void )
+ID3D11Device*            GetDevice11(void)        { return g_pDevice; }
+ID3D11DeviceContext*     GetContext(void)          { return g_pContext; }
+IDXGISwapChain*          GetSwapChain(void)        { return g_pSwapChain; }
+ID3D11RenderTargetView*  GetRenderTargetView(void) { return g_pRTV; }
+ID3D11DepthStencilView*  GetDepthStencilView(void) { return g_pDSV; }
+
+//======================================================================
+//      DX11 デバイス・スワップチェーン初期化
+//======================================================================
+bool InitD3D11(HWND hWnd, int width, int height)
 {
-	HRESULT hr;
-	D3DDISPLAYMODE d3ddm;
-	
-	//==============================================================================
-	// Direct3D オブジェクトを作成
-	//==============================================================================
-	g_pDirect3D = Direct3DCreate9( D3D_SDK_VERSION );
-	if ( g_pDirect3D == NULL ) {
-		MessageBox( NULL, "Direct3Dの作成に失敗しました", "Error", MB_OK | MB_ICONSTOP );
-		return false;
-	}
+    HRESULT hr;
 
-	//==============================================================================
-	// 現在の画面モードを取得
-	//==============================================================================
-	hr = g_pDirect3D->GetAdapterDisplayMode( D3DADAPTER_DEFAULT, &d3ddm );
-	if FAILED( hr ) {
-		MessageBox( NULL, "画面モードの取得に失敗しました", "Error", MB_OK | MB_ICONSTOP );
-		return false;
-	}
+    //------------------------------------------------------------------
+    // スワップチェーン記述子
+    //------------------------------------------------------------------
+    DXGI_SWAP_CHAIN_DESC scd = {};
+    scd.BufferCount                         = 1;
+    scd.BufferDesc.Width                    = width;
+    scd.BufferDesc.Height                   = height;
+    scd.BufferDesc.Format                   = DXGI_FORMAT_R8G8B8A8_UNORM;
+    scd.BufferDesc.RefreshRate.Numerator    = 60;
+    scd.BufferDesc.RefreshRate.Denominator  = 1;
+    scd.BufferUsage                         = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    scd.OutputWindow                        = hWnd;
+    scd.SampleDesc.Count                    = 1;
+    scd.SampleDesc.Quality                  = 0;
+    scd.Windowed                            = TRUE;
+    scd.SwapEffect                          = DXGI_SWAP_EFFECT_DISCARD;
 
-	//==============================================================================
-	// Direct3D 初期化パラメータの設定
-	//==============================================================================
-	ZeroMemory( &g_md3dpp, sizeof(D3DPRESENT_PARAMETERS) );
+    D3D_FEATURE_LEVEL featureLevels[] = {
+        D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0,
+    };
+    D3D_FEATURE_LEVEL featureLevel;
 
-	g_md3dpp.BackBufferCount	= 1;
-	g_md3dpp.Windowed			= TRUE;
-	g_md3dpp.BackBufferWidth	= GetScreenWidth();
-	g_md3dpp.BackBufferHeight	= GetScreenHeight();
+    UINT createFlags = 0;
+#ifdef _DEBUG
+    createFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 
-	// ウインドウ : 現在の画面モードを使用
-	g_md3dpp.BackBufferFormat		= d3ddm.Format;
-	g_md3dpp.MultiSampleType		= D3DMULTISAMPLE_NONE;
-	g_md3dpp.SwapEffect				= D3DSWAPEFFECT_DISCARD;
-	//g_md3dpp.PresentationInterval	= D3DPRESENT_INTERVAL_IMMEDIATE;
-	g_md3dpp.PresentationInterval	= D3DPRESENT_INTERVAL_DEFAULT;
-	g_md3dpp.hDeviceWindow			= GetWindow();
+    //------------------------------------------------------------------
+    // デバイスとスワップチェーンを同時に作成
+    //------------------------------------------------------------------
+    hr = D3D11CreateDeviceAndSwapChain(
+        nullptr,
+        D3D_DRIVER_TYPE_HARDWARE,
+        nullptr,
+        createFlags,
+        featureLevels,
+        ARRAYSIZE(featureLevels),
+        D3D11_SDK_VERSION,
+        &scd,
+        &g_pSwapChain,
+        &g_pDevice,
+        &featureLevel,
+        &g_pContext
+    );
+    if (FAILED(hr)) {
+        MessageBox(nullptr, "DX11 デバイスの作成に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+        return false;
+    }
 
-	// Z バッファの自動作成
-	g_md3dpp.EnableAutoDepthStencil	= TRUE;
-	g_md3dpp.AutoDepthStencilFormat	= D3DFMT_D24S8;
-	g_md3dpp.Flags = D3DPRESENTFLAG_DISCARD_DEPTHSTENCIL;//ダブルステンシル
+    //------------------------------------------------------------------
+    // バックバッファからレンダーターゲットビューを作成
+    //------------------------------------------------------------------
+    ID3D11Texture2D* pBackBuffer = nullptr;
+    hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&pBackBuffer));
+    if (FAILED(hr)) {
+        MessageBox(nullptr, "バックバッファの取得に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+        return false;
+    }
 
-	//==============================================================================
-	// シェーダーバージョン取得
-	//==============================================================================
-	D3DCAPS9 caps;
-	g_pDirect3D->GetDeviceCaps( 0, D3DDEVTYPE_HAL, &caps );
-	g_mVertexShaderVersion = caps.VertexShaderVersion;
-	g_mMaxVertexShaderConst = caps.MaxVertexShaderConst;
+    hr = g_pDevice->CreateRenderTargetView(pBackBuffer, nullptr, &g_pRTV);
+    pBackBuffer->Release();
+    if (FAILED(hr)) {
+        MessageBox(nullptr, "レンダーターゲットビューの作成に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+        return false;
+    }
 
-	//==============================================================================
-	// デバイスの生成
-	//==============================================================================
+    //------------------------------------------------------------------
+    // 深度ステンシルテクスチャとビューを作成
+    //------------------------------------------------------------------
+    D3D11_TEXTURE2D_DESC depthDesc = {};
+    depthDesc.Width              = width;
+    depthDesc.Height             = height;
+    depthDesc.MipLevels          = 1;
+    depthDesc.ArraySize          = 1;
+    depthDesc.Format             = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthDesc.SampleDesc.Count   = 1;
+    depthDesc.SampleDesc.Quality = 0;
+    depthDesc.Usage              = D3D11_USAGE_DEFAULT;
+    depthDesc.BindFlags          = D3D11_BIND_DEPTH_STENCIL;
 
-	// 頂点シェーダー1.1？
-	if ( g_mVertexShaderVersion >= D3DVS_VERSION(1,1) ) {
-		// HARDWARE T&L
-		if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_HARDWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {
-			// SOFTWARE T&L
-			if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {
-				// REFERENCE RASTERIZE
-				if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {				
-					MessageBox( NULL, "Direct3Dデバイスの生成に失敗しました", "Error" , MB_OK | MB_ICONSTOP );
-					return false;
-				}
-			}
-		}
-	} else {
-		g_mIsUseSoftware = TRUE;	// HARDWARE&SOFTWARE T&L
-		if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_MIXED_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {
-			// SOFTWARE T&L
-			if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {
-				// REFERENCE RASTERIZE
-				if FAILED( g_pDirect3D->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice ) ) {				
-					MessageBox( NULL, "Direct3Dデバイスの生成に失敗しました", "Error" , MB_OK | MB_ICONSTOP );
-					return false;
-				}
-			}
-		}
-	}
+    hr = g_pDevice->CreateTexture2D(&depthDesc, nullptr, &g_pDepthStencil);
+    if (FAILED(hr)) {
+        MessageBox(nullptr, "深度バッファの作成に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+        return false;
+    }
 
-	return true;
+    hr = g_pDevice->CreateDepthStencilView(g_pDepthStencil, nullptr, &g_pDSV);
+    if (FAILED(hr)) {
+        MessageBox(nullptr, "深度ステンシルビューの作成に失敗しました", "Error", MB_OK | MB_ICONSTOP);
+        return false;
+    }
+
+    //------------------------------------------------------------------
+    // レンダーターゲットと深度バッファをコンテキストに設定
+    //------------------------------------------------------------------
+    g_pContext->OMSetRenderTargets(1, &g_pRTV, g_pDSV);
+
+    //------------------------------------------------------------------
+    // ビューポート設定
+    //------------------------------------------------------------------
+    D3D11_VIEWPORT vp = {};
+    vp.Width    = static_cast<FLOAT>(width);
+    vp.Height   = static_cast<FLOAT>(height);
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    vp.TopLeftX = 0.0f;
+    vp.TopLeftY = 0.0f;
+    g_pContext->RSSetViewports(1, &vp);
+
+    return true;
 }
 
 //======================================================================
-//
-//		DirectXGraphics開放
-//
+//      DX11 リソース解放
 //======================================================================
-void ReleaseD3D( void )
+void ReleaseD3D11(void)
 {
-	if ( g_pD3DDevice != NULL ) g_pD3DDevice->Release();
-	if ( g_pDirect3D != NULL ) g_pDirect3D->Release();
-}
-
-
-//======================================================================
-//
-//		頂点バッファ生成
-//
-//======================================================================
-HRESULT CreateVB( LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD fvf )
-{
-	HRESULT hr = g_pD3DDevice->CreateVertexBuffer(
-					size,
-					Usage,
-					fvf,
-					D3DPOOL_MANAGED,
-					lpVB,NULL );
-	return hr;
-}
-
-//======================================================================
-//
-//		インデックスバッファ生成
-//
-//======================================================================
-HRESULT CreateIB( LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage )
-{
-	HRESULT hr = g_pD3DDevice->CreateIndexBuffer(
-					size,
-					Usage,
-					D3DFMT_INDEX16,
-					D3DPOOL_MANAGED,
-					lpIB,NULL );
-	return hr;
+    if (g_pDSV)         { g_pDSV->Release();         g_pDSV         = nullptr; }
+    if (g_pDepthStencil){ g_pDepthStencil->Release(); g_pDepthStencil= nullptr; }
+    if (g_pRTV)         { g_pRTV->Release();          g_pRTV         = nullptr; }
+    if (g_pSwapChain)   { g_pSwapChain->Release();    g_pSwapChain   = nullptr; }
+    if (g_pContext)     { g_pContext->Release();      g_pContext     = nullptr; }
+    if (g_pDevice)      { g_pDevice->Release();       g_pDevice      = nullptr; }
 }

@@ -4,16 +4,18 @@
 //======================================================================
 // INCLUDE
 //======================================================================
-#include <d3d9.h>
-#include <d3dx9.h>
 #include <stdio.h>
 #include <string>
 #include <list>
 #include <vector>
 #include <algorithm>
-
+#include "Dx.h"
+#include "List.h"
+#include "AreaMesh.h"
+#include "EffectSystem.h"
 
 using namespace std;
+
 //======================================================================
 // GLOBAL
 //======================================================================
@@ -37,7 +39,7 @@ static const BYTE key_table[0x100] =
 	0x46, 0x19, 0x9F, 0x45, 0x49, 0xC6, 0x40, 0x09, 0xA2, 0x99, 0x5B, 0x7B, 0x98, 0x7F, 0xA0, 0xD0,
 };
 
-static const  BYTE key_table2[0x100] =
+static const BYTE key_table2[0x100] =
 {
 	0xB8, 0xC5, 0xF7, 0x84, 0xE4, 0x5A, 0x23, 0x7B, 0xC8, 0x90, 0x1D, 0xF6, 0x5D, 0x09, 0x51, 0xC1,
 	0x07, 0x24, 0xEF, 0x5B, 0x1D, 0x73, 0x90, 0x08, 0xA5, 0x70, 0x1C, 0x22, 0x5F, 0x6B, 0xEB, 0xB0,
@@ -60,13 +62,6 @@ static const  BYTE key_table2[0x100] =
 //======================================================================
 // TYPE DEFINE
 //======================================================================
-#include "List.h"
-#include "AreaMesh.h"
-#include "EffectSystem.h"
-
-//======================================================================
-// ベースデータクラス
-//======================================================================
 
 typedef struct
 {
@@ -79,59 +74,60 @@ typedef struct
 } TEMPOBJINFO;
 
 typedef struct {
-	D3DXVECTOR3		mPos[8];	//　不明
-	DWORD			mInf[8];	// 不明
+	XMFLOAT3    mPos[8];
+	DWORD       mInf[8];
 } WALLINFO;
 
 typedef struct
 {
-	TEMPOBJINFO		mObj;
-	D3DXMATRIX		mMat;
-	CAreaMesh		*pAreaMesh;
+	TEMPOBJINFO     mObj;
+	XMFLOAT4X4      mMat;
+	CAreaMesh      *pAreaMesh;
 	list<CAreaMesh>::iterator itrAreaMesh;
 } OBJINFO;
 
 //======================================================================
 // エリアクラス
 //======================================================================
-typedef class CArea 
+typedef class CArea
 {
 protected:
-	IDirect3DVertexDeclaration9	*m_VertexFormat;
-	unsigned long				m_VertexSize;
-	IDirect3DVertexShader9		*m_hVertexShader;
-	D3DXMATRIX					m_mRootTransform;
-	CList						m_AreaMeshs,m_EffMeshs;
-	CList						m_EffectModels;			// エフェクトモデルリスト
-	int							m_mArea;				// エリアファイル
-	int							m_nObj;					// MMB個数　未使用
-	OBJINFO						*m_pObjInfo;
-
+	ID3D11InputLayout*  m_pInputLayout;
+	ID3D11VertexShader* m_pVS;
+	ID3D11PixelShader*  m_pPS;
+	ID3D11Buffer*       m_pCB;
+	unsigned long       m_VertexSize;
+	XMFLOAT4X4          m_mRootTransform;
+	CList               m_AreaMeshs, m_EffMeshs;
+	CList               m_EffectModels;
+	int                 m_mArea;
+	int                 m_nObj;
+	OBJINFO            *m_pObjInfo;
 
 public:
-	CList						m_KeyFrames;			// キーフレームリスト
-	CList						m_Effects;				// エフェクトリスト
-	CList						m_Textures;
+	CList               m_KeyFrames;
+	CList               m_Effects;
+	CList               m_Textures;
 
 	CArea();
 	virtual ~CArea();
-	virtual HRESULT			LoadTextureFromFile( char *filename );
-	virtual	HRESULT			LoadEffectFromFile(char *FileName);
-	virtual	HRESULT			LoadEffectModelFromFile(char *FileName);
-	virtual	HRESULT			LoadEffectModel2FromFile(char *FileName);
-	virtual	void			DecodeMMB(BYTE* p);
-	virtual	void			DecodeMMBSub(BYTE* p);
-	virtual	void			DecodeMZB(BYTE* p);
-	virtual HRESULT			LoadAreaFromFile( char *filename, unsigned long FVF );
-	virtual	void			InitData(void);
-	virtual	unsigned long	Rendering( float PosX, float PosY, float PosZ );
-	virtual	bool			CreateVertexShader( void );
-	virtual	bool			LoadMAP( void );
-	virtual	int				GetArea(void) { return m_mArea; }
-	virtual	void			SetArea( int mArea ) { m_mArea	=	mArea; }
-	virtual bool	        saveMQO(char *FPath, char *FName,float posX,float posY,float posZ);
-	virtual bool	        saveMQO2(char *FPath, char *FName, float posX, float posY, float posZ);
-	virtual bool			saveMQO3(char *FPath, char *FName);
+	virtual HRESULT         LoadTextureFromFile( char *filename );
+	virtual HRESULT         LoadEffectFromFile(char *FileName);
+	virtual HRESULT         LoadEffectModelFromFile(char *FileName);
+	virtual HRESULT         LoadEffectModel2FromFile(char *FileName);
+	virtual void            DecodeMMB(BYTE* p);
+	virtual void            DecodeMMBSub(BYTE* p);
+	virtual void            DecodeMZB(BYTE* p);
+	virtual HRESULT         LoadAreaFromFile( char *filename, unsigned long FVF );
+	virtual void            InitData(void);
+	virtual unsigned long   Rendering( float PosX, float PosY, float PosZ );
+	virtual bool            CreateVertexShader( void );
+	virtual bool            LoadMAP( void );
+	virtual int             GetArea(void) { return m_mArea; }
+	virtual void            SetArea( int mArea ) { m_mArea = mArea; }
+	virtual bool            saveMQO(char *FPath, char *FName, float posX, float posY, float posZ);
+	virtual bool            saveMQO2(char *FPath, char *FName, float posX, float posY, float posZ);
+	virtual bool            saveMQO3(char *FPath, char *FName);
 
 	bool InitKeyFrame(void) {
 		CKeyFrame *pKeyFrame = (CKeyFrame*)m_KeyFrames.Top();
@@ -151,7 +147,7 @@ public:
 		m_Effects.Release();
 		return true;
 	}
-	virtual bool    InitEffectModel(void){
+	virtual bool InitEffectModel(void) {
 		CEffectModel *pEffectModel = (CEffectModel*)m_EffectModels.Top();
 		while (pEffectModel) {
 			pEffectModel->~CEffectModel();
@@ -162,11 +158,10 @@ public:
 	}
 
 private:
-	// MQOセーブ共通ヘルパー
 	static void PrepareMQOPath(char* path, char* dirPath, const char* FPath, const char* FName);
 	static void WriteMQOHeader(FILE* fd, CList& textures, const char* dirPath, bool isEffectModel);
-	static void WriteMQOAreaMesh(FILE* fd, CAreaMesh* pAreaMesh, const D3DXMATRIX& AreaMatrix, bool useMirrorLogic, bool isEffect);
-	static void WriteMQOEffectModel(FILE* fd, CEffectModel* pEffMdl, const D3DXMATRIX& EffectMatrix);
+	static void WriteMQOAreaMesh(FILE* fd, CAreaMesh* pAreaMesh, const XMFLOAT4X4& AreaMatrix, bool useMirrorLogic, bool isEffect);
+	static void WriteMQOEffectModel(FILE* fd, CEffectModel* pEffMdl, const XMFLOAT4X4& EffectMatrix);
 }
 CArea, *LPCArea;
 
@@ -178,4 +173,4 @@ typedef class CMAP : public CArea
 protected:
 public:
 }
-CMAP,*LPCMAP;
+CMAP, *LPCMAP;

@@ -1,112 +1,128 @@
 #pragma once
 
-#include <d3d9.h>
-#include <d3dx9.h>
 #include <string>
 #include <list>
+#include <vector>
+#include "Dx.h"
 #include "List.h"
 
-// CArea クラスの前方宣言 (CAreaMesh でポインタとして使用されるため)
+// CArea クラスの前方宣言
 class CArea;
 
 //======================================================================
-// TYPE DEFINE (CTexture等で使われる可能性のある構造体)
+// 頂点構造体 (36 バイト, Phase6: XMFLOAT3)
 //======================================================================
+#pragma pack(push, 2)
 typedef struct _D3DTEXVERTEX
 {
-	D3DXVECTOR3	v, n;	//座標,法線ベクトル
-	DWORD color;     //色
-	float tu, tv;     // UV座標
+    XMFLOAT3 v, n;   // 座標, 法線 (12+12=24 bytes)
+    DWORD    color;  // 色 BGRA (4 bytes)
+    float    tu, tv; // UV (8 bytes)
 } D3DTEXVERTEX;
+#pragma pack(pop)
 
 //======================================================================
-// マテリアルクラス
+// マテリアル (テクスチャ) クラス  Phase3: DX11 SRV
 //======================================================================
 typedef class CTexture : public CListBase
 {
 protected:
-	IDirect3DTexture9	*m_pTexture;
+    ID3D11ShaderResourceView* m_pSRV;
 
 public:
-	std::string			m_TexName;
-	CTexture();
-	virtual ~CTexture();
-	virtual void		SetTexName(const char* name) { m_TexName = name; }
-	virtual const char*	GetTexName() { return m_TexName.c_str(); }
-	virtual void SetTexture( IDirect3DTexture9 *pTex );
-	virtual IDirect3DTexture9 *GetTexture( void );
+    std::string              m_TexName;
+    std::vector<uint32_t>    m_cpuData;    // BGRA ピクセル (Phase7 PNG 保存用)
+    UINT                     m_texWidth;
+    UINT                     m_texHeight;
+
+    CTexture();
+    virtual ~CTexture();
+    virtual void SetTexName(const char* name)  { m_TexName = name; }
+    virtual const char* GetTexName(void)       { return m_TexName.c_str(); }
+    virtual void SetTexture(ID3D11ShaderResourceView* pSRV);
+    virtual ID3D11ShaderResourceView* GetTexture(void) { return m_pSRV; }
 }
 CTexture, LPCTexture;
 
 //======================================================================
-// ストリームタイプクラス
+// ストリームタイプクラス  Phase2: D3D11_PRIMITIVE_TOPOLOGY
 //======================================================================
 typedef class CStream
 {
 protected:
-	CTexture			*m_pTexture;			// texture pointer
-	bool				m_StencilFlag;			// 
-	short				m_AlphaFlag;
-	D3DPRIMITIVETYPE	m_PrimitiveType;
-	unsigned long		m_IndexStart;
-	unsigned long		m_FaceCount;
+    CTexture*                  m_pTexture;
+    bool                       m_StencilFlag;
+    short                      m_AlphaFlag;
+    D3D11_PRIMITIVE_TOPOLOGY   m_PrimitiveType;
+    unsigned long              m_IndexStart;
+    unsigned long              m_FaceCount;
 
 public:
-	int					m_TexNo;
-	unsigned long		m_vertNum;
-	unsigned long		m_faceNum;
+    int           m_TexNo;
+    unsigned long m_vertNum;
+    unsigned long m_faceNum;
 
-	CStream();
-	virtual ~CStream();
-	virtual	void SetpTexture(CTexture* pTexture ) { m_pTexture = pTexture; }
-	virtual	CTexture* GetpTexture( void ) { return m_pTexture; }
-	virtual	void SetStencilFlag( bool StencilFlag ) { m_StencilFlag = StencilFlag; }
-	virtual	short GetStencilFlag( void ) { return m_StencilFlag; }
-	virtual	void SetAlphaFlag( short AlphaFlag ) { m_AlphaFlag = AlphaFlag; }
-	virtual	short GetAlphaFlag( void ) { return m_AlphaFlag; }
-	virtual void SetMeshAttr( D3DPRIMITIVETYPE PrimitiveType,unsigned long index_start, unsigned long face_count );
-	virtual D3DPRIMITIVETYPE GetPrimitiveType( void );	
-	virtual unsigned long GetIndexStart( void );
-	virtual unsigned long GetFaceCount( void );
+    CStream();
+    virtual ~CStream();
+    virtual void SetpTexture(CTexture* p)                  { m_pTexture    = p; }
+    virtual CTexture* GetpTexture(void)                    { return m_pTexture; }
+    virtual void SetStencilFlag(bool f)                    { m_StencilFlag = f; }
+    virtual short GetStencilFlag(void)                     { return m_StencilFlag; }
+    virtual void SetAlphaFlag(short f)                     { m_AlphaFlag   = f; }
+    virtual short GetAlphaFlag(void)                       { return m_AlphaFlag; }
+    virtual void SetMeshAttr(D3D11_PRIMITIVE_TOPOLOGY type,
+                             unsigned long index_start,
+                             unsigned long face_count);
+    virtual D3D11_PRIMITIVE_TOPOLOGY GetPrimitiveType(void);
+    virtual unsigned long GetIndexStart(void);
+    virtual unsigned long GetFaceCount(void);
 }
 CStream, LPCStream;
 
 //======================================================================
-// エリアメッシュクラス
+// エリアメッシュクラス  Phase2: DX11 バッファ
 //======================================================================
 typedef class CAreaMesh : public CListBase
 {
-	friend class CArea;
+    friend class CArea;
 
 protected:
-	std::list<CStream>		m_LStreams;
-	D3DXVECTOR3				m_BoxLow, m_BoxHigh;
-	unsigned long			m_NumVertices, m_NumFaces, m_NumIndex, m_VBSize, m_IBSize, m_FVF;
-	LPDIRECT3DVERTEXBUFFER9 m_lpVB;
-	LPDIRECT3DINDEXBUFFER9	m_lpIB;
-	std::string			m_AreaName;
-	std::string			m_AreaType;
+    std::list<CStream>  m_LStreams;
+    XMFLOAT3            m_BoxLow, m_BoxHigh;   // Phase6: XMFLOAT3
+    unsigned long       m_NumVertices, m_NumFaces, m_NumIndex, m_VBSize, m_IBSize, m_FVF;
+    ID3D11Buffer*       m_lpVB;
+    ID3D11Buffer*       m_lpIB;
+    std::string         m_AreaName;
+    std::string         m_AreaType;
 
 public:
-	CAreaMesh();
-	virtual		~CAreaMesh();
-	virtual		void		SetBoxLow(D3DXVECTOR3 BoxLow) { m_BoxLow = BoxLow; }
-	virtual		D3DXVECTOR3	GetBoxLow(void) { return m_BoxLow; }
-	virtual		void		SetBoxHigh(D3DXVECTOR3 BoxHigh) { m_BoxHigh = BoxHigh; }
-	virtual		D3DXVECTOR3	GetBoxHigh(void) { return m_BoxHigh; }
-	virtual		void		SetNumVertices(unsigned long NumVertices) { m_NumVertices = NumVertices; }
-	virtual		unsigned long	GetNumVertices(void) { return m_NumVertices; }
-	virtual		void		SetNumFaces(unsigned long NumFaces) { m_NumFaces = NumFaces; }
-	virtual		unsigned long	GetNumFaces(void) { return m_NumFaces; }
-	virtual		void		SetlpVB(LPDIRECT3DVERTEXBUFFER9 lpVB) { m_lpVB = lpVB; }
-	virtual		LPDIRECT3DVERTEXBUFFER9	GetlpVB(void) { return m_lpVB; }
-	virtual		void		SetlpIB(LPDIRECT3DINDEXBUFFER9 lpIB) { m_lpIB = lpIB; }
-	virtual		LPDIRECT3DINDEXBUFFER9	GetlpIB(void) { return m_lpIB; }
-	virtual		void		SetAreaName(const char *pAreaName) { m_AreaName = pAreaName; }
-	virtual		const char*		GetAreaName(void) { return m_AreaName.c_str(); }
-	virtual		void		SetAreaType(const char *pAreaType) { m_AreaType = pAreaType; }
-	virtual		const char*		GetAreaType(void) { return m_AreaType.c_str(); }
-	virtual		HRESULT		LoadAreaMesh(char *pFile, CArea *pArea, unsigned long FVF);
-	virtual     int			countTextures(void);
+    std::vector<BYTE>   m_cpuVB;  // CPU コピー (MQO エクスポート用)
+    std::vector<BYTE>   m_cpuIB;
+
+    CAreaMesh();
+    virtual ~CAreaMesh();
+
+    virtual void      SetBoxLow(XMFLOAT3 v)    { m_BoxLow  = v; }
+    virtual XMFLOAT3  GetBoxLow(void)           { return m_BoxLow; }
+    virtual void      SetBoxHigh(XMFLOAT3 v)   { m_BoxHigh = v; }
+    virtual XMFLOAT3  GetBoxHigh(void)          { return m_BoxHigh; }
+
+    virtual void          SetNumVertices(unsigned long n) { m_NumVertices = n; }
+    virtual unsigned long GetNumVertices(void)            { return m_NumVertices; }
+    virtual void          SetNumFaces(unsigned long n)    { m_NumFaces    = n; }
+    virtual unsigned long GetNumFaces(void)               { return m_NumFaces; }
+
+    virtual void          SetlpVB(ID3D11Buffer* p) { m_lpVB = p; }
+    virtual ID3D11Buffer* GetlpVB(void)            { return m_lpVB; }
+    virtual void          SetlpIB(ID3D11Buffer* p) { m_lpIB = p; }
+    virtual ID3D11Buffer* GetlpIB(void)            { return m_lpIB; }
+
+    virtual void        SetAreaName(const char* s) { m_AreaName = s; }
+    virtual const char* GetAreaName(void)          { return m_AreaName.c_str(); }
+    virtual void        SetAreaType(const char* s) { m_AreaType = s; }
+    virtual const char* GetAreaType(void)          { return m_AreaType.c_str(); }
+
+    virtual HRESULT LoadAreaMesh(char* pFile, CArea* pArea, unsigned long FVF);
+    virtual int     countTextures(void);
 }
 CAreaMesh, *LPCAreaMesh;

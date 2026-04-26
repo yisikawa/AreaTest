@@ -67,18 +67,3 @@ bool convert_path(char* src, const char* base) {
 	return false;
 }
 
-//======================================================================
-// 行列・3D演算
-//======================================================================
-BOOL IsMirrorMatrix(const D3DXMATRIX* pMat) {
-	FLOAT det = D3DXMatrixDeterminant(pMat);
-	return (det < 0.0f);
-}
-
-D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2) {
-	D3DXVECTOR3 edge1 = *pV1 - *pV0;
-	D3DXVECTOR3 edge2 = *pV2 - *pV0;
-	D3DXVec3Cross(pOut, &edge1, &edge2);
-	D3DXVec3Normalize(pOut, pOut);
-	return pOut;
-}

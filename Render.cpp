@@ -10,333 +10,271 @@
 #include "Render.h"
 #include "Area.h"
 
-//======================================================================
-// PROTOTYPE
-//======================================================================
-DWORD	ConvertStr2Dno2( char* DataName );
+// WinMain.cpp で定義されている変換関数の前方宣言
+extern DWORD ConvertStr2Dno2(char* DataName);
+
 //======================================================================
 // DEFINE
 //======================================================================
-#define SAFE_RELEASE(p)		if ( (p) != NULL ) { (p)->Release(); (p) = NULL; }
-#define SAFE_DELETES(p)		if ( (p) != NULL ) { delete [] (p); (p) = NULL; }
-#define SAFE_DELETE(p)		if ( (p) != NULL ) { delete (p); (p) = NULL; }
-#define PAI					(3.1415926535897932384626433832795f)
-#define PAI2				(PAI*2.0f)
-
-inline DWORD FtoDW( FLOAT f ) { return *((DWORD*)&f); }
+#define SAFE_RELEASE(p)     if ((p) != NULL) { (p)->Release(); (p) = NULL; }
+#define PAI                 (3.1415926535897932384626433832795f)
+#define PAI2                (PAI * 2.0f)
 
 //======================================================================
-// GLOBAL
+// GLOBAL  (Phase6: D3DXMATRIX/D3DXVECTOR3 → XMFLOAT4X4/XMFLOAT3)
 //======================================================================
-static LPDIRECT3D9				g_pDirect3D;
-static LPDIRECT3DDEVICE9		g_pD3DDevice;
-static D3DPRESENT_PARAMETERS	g_md3dpp;
-unsigned long					g_mVertexShaderVersion;
-int								g_mMaxVertexShaderConst = 0; // 頂点シェーダー　MAX　Matrix
-BOOL							g_mIsUseSoftware = FALSE;
+float       g_mTime             = 0.f;
+        CArea       g_mArea;
+extern  HWND        hDlg1, hTrack;
+extern  float       g_mDispArea;
+extern  float       g_mDispTree;
+float               g_mFov          = PAI / 4.f;
+float               g_mAspect       = 1.34f;
+float               g_mNear_z       = 0.1f;
+float               g_mFar_z        = 1400.0f;
 
-float		g_mTime				=	0.;
-		CArea		g_mArea;
-extern	HWND 		hDlg1,hTrack;
-extern	float		g_mDispArea;
-extern	float		g_mDispTree;
-float				g_mFov			= PAI / 4.f;		// FOV : 60度
-float				g_mAspect		= 1.34f;		// 画面のアスペクト比
-float				g_mNear_z		= 0.1f;			// 最近接距離
-float				g_mFar_z		= 1400.0f;		// 最遠方距離
-D3DLIGHT9			g_mLight,g_mLightbase;
-static float		fTime		= 0;
-extern	unsigned long	VertexShaderVersion;
-extern	int				MaxVertexShaderConst; // 頂点シェーダー　MAX　Matrix
+// ライト方向 (WinMain.cpp がマウス操作で更新, シェーダーには未使用)
+XMFLOAT3    g_mLightDir     = { 0.3f, -1.0f, 0.3f };
+XMFLOAT3    g_mLightDirBase = { 0.3f, -1.0f, 0.3f };
 
-D3DXMATRIX			g_mProjection, g_mView, g_mEyeMat;
-float				g_mEyeScale=1.f,g_mEyeAlph = 0.f,g_mEyeBeta = 0.f;
-float				g_mLightAlph = 0.f,g_mLightBeta = 0.f;
-D3DXVECTOR3			g_mEye,g_mEyebase( 0.0f,	 1.1f, -4.5f);
-D3DXVECTOR3			g_mAt(	0.0f,	 1.1f,	0.0f);
-D3DXVECTOR3			g_mUp(	0.0f,	 1.0f,	0.0f);
-LPDIRECT3DSURFACE9	g_pBackBuffer;					// バックバッファ
-LPDIRECT3DSURFACE9	g_pZBuffer;						// Zバッファ
-float				g_mLightDist = 1.5f;
-D3DXVECTOR3			g_mLightPosition(0.f,0.f,0.f);
-D3DXMATRIX			g_mViewLight;					// ライトから見た場合のビューマトリックス
+// Phase2 互換グローバル (Area.cpp が extern 宣言しているため定義だけ残す)
+BOOL        g_mIsUseSoftware    = FALSE;
+float       g_mLightDist        = 100.f;
+XMFLOAT3    g_mLightPosition    = { 0.f, 0.f, 0.f };
+XMFLOAT4X4  g_mViewLight;   // identity で初期化
 
-extern	long g_mScreenWidth;
-extern	long g_mScreenHeight;
+static float    fTime = 0;
+
+// 行列・カメラ (Phase6: XMFLOAT4X4/XMFLOAT3)
+XMFLOAT4X4  g_mProjection, g_mView, g_mEyeMat;
+float       g_mEyeScale = 1.f, g_mEyeAlph = 0.f, g_mEyeBeta = 0.f;
+float       g_mLightAlph = 0.f, g_mLightBeta = 0.f;
+XMFLOAT3    g_mEye;
+XMFLOAT3    g_mEyebase  = { 0.0f,  1.1f, -4.5f };
+XMFLOAT3    g_mAt       = { 0.0f,  1.1f,  0.0f };
+XMFLOAT3    g_mUp       = { 0.0f,  1.0f,  0.0f };
+
+extern long g_mScreenWidth;
+extern long g_mScreenHeight;
+
+// DX11 レンダーステートオブジェクト
+static ID3D11BlendState*        g_pBlendNone    = nullptr;
+static ID3D11BlendState*        g_pBlendAlpha   = nullptr;
+static ID3D11RasterizerState*   g_pRastCCW      = nullptr;
+static ID3D11RasterizerState*   g_pRastCW       = nullptr;
+static ID3D11RasterizerState*   g_pRastNone     = nullptr;
+static ID3D11DepthStencilState* g_pDSSNormal    = nullptr;
+static ID3D11SamplerState*      g_pSampler      = nullptr;
+
 //======================================================================
-//		各種関数
+// アクセサ
 //======================================================================
-LPDIRECT3DDEVICE9 GetDevice(void) { return g_pD3DDevice; }
-D3DPRESENT_PARAMETERS *GetAdapter(void) { return &g_md3dpp; }
-unsigned long GetVertexShaderVersion(void) { return g_mVertexShaderVersion; }
+ID3D11BlendState*        GetBlendNone(void)   { return g_pBlendNone; }
+ID3D11BlendState*        GetBlendAlpha(void)  { return g_pBlendAlpha; }
+ID3D11RasterizerState*   GetRastCCW(void)     { return g_pRastCCW; }
+ID3D11RasterizerState*   GetRastCW(void)      { return g_pRastCW; }
+ID3D11RasterizerState*   GetRastNone(void)    { return g_pRastNone; }
+ID3D11DepthStencilState* GetDSSNormal(void)   { return g_pDSSNormal; }
+ID3D11SamplerState*      GetSampler(void)     { return g_pSampler; }
+
 //======================================================================
-//		DirectXGraphics初期化
+//      DX11 バッファ生成 (Phase2)
+//======================================================================
+HRESULT CreateBuffer11(ID3D11Buffer** ppBuf, UINT byteSize, UINT bindFlags,
+                       const void* pInitData)
+{
+    D3D11_BUFFER_DESC bd = {};
+    bd.ByteWidth      = byteSize;
+    bd.Usage          = (pInitData != nullptr) ? D3D11_USAGE_DEFAULT : D3D11_USAGE_DYNAMIC;
+    bd.BindFlags      = bindFlags;
+    bd.CPUAccessFlags = (pInitData != nullptr) ? 0 : D3D11_CPU_ACCESS_WRITE;
+
+    if (pInitData)
+    {
+        D3D11_SUBRESOURCE_DATA sd = {};
+        sd.pSysMem = pInitData;
+        return GetDevice11()->CreateBuffer(&bd, &sd, ppBuf);
+    }
+    return GetDevice11()->CreateBuffer(&bd, nullptr, ppBuf);
+}
+
+//======================================================================
+//      DX11 初期化 (旧 InitD3D 相当)
 //======================================================================
 bool InitD3D(void)
 {
-	HRESULT hr;
-	D3DDISPLAYMODE d3ddm;
-
-	//==============================================================================
-	// Direct3D オブジェクトを作成
-	//==============================================================================
-	g_pDirect3D = Direct3DCreate9(D3D_SDK_VERSION);
-	if (g_pDirect3D == NULL) {
-		MessageBox(NULL, "It failed to create a Direct3D", "Error", MB_OK | MB_ICONSTOP);
-		return false;
-	}
-
-	//==============================================================================
-	// 現在の画面モードを取得
-	//==============================================================================
-	hr = g_pDirect3D->GetAdapterDisplayMode(D3DADAPTER_DEFAULT, &d3ddm);
-	if FAILED(hr) {
-		MessageBox(NULL, "It failed to get the screen mode", "Error", MB_OK | MB_ICONSTOP);
-		return false;
-	}
-
-	//==============================================================================
-	// Direct3D 初期化パラメータの設定
-	//==============================================================================
-	ZeroMemory(&g_md3dpp, sizeof(D3DPRESENT_PARAMETERS));
-
-	g_md3dpp.BackBufferCount = 1;
-	g_md3dpp.Windowed = TRUE;
-	g_md3dpp.BackBufferWidth = GetScreenWidth();
-	g_md3dpp.BackBufferHeight = GetScreenHeight();
-
-	// ウインドウ : 現在の画面モードを使用
-	g_md3dpp.BackBufferFormat = d3ddm.Format;
-	g_md3dpp.MultiSampleType = D3DMULTISAMPLE_NONE;
-	g_md3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
-	//g_md3dpp.PresentationInterval	= D3DPRESENT_INTERVAL_IMMEDIATE;
-	g_md3dpp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-	g_md3dpp.hDeviceWindow = GetWindow();
-
-	// Z バッファの自動作成
-	g_md3dpp.EnableAutoDepthStencil = TRUE;
-	g_md3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;
-	g_md3dpp.Flags = D3DPRESENTFLAG_DISCARD_DEPTHSTENCIL;//ダブルステンシル
-
-	//==============================================================================
-	// シェーダーバージョン取得
-	//==============================================================================
-	D3DCAPS9 caps;
-	g_pDirect3D->GetDeviceCaps(0, D3DDEVTYPE_HAL, &caps);
-	g_mVertexShaderVersion = caps.VertexShaderVersion;
-	g_mMaxVertexShaderConst = caps.MaxVertexShaderConst;
-
-	//==============================================================================
-	// デバイスの生成
-	//==============================================================================
-
-	// 頂点シェーダー1.1？
-	if (g_mVertexShaderVersion >= D3DVS_VERSION(1, 1)) {
-		// HARDWARE T&L
-		if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_HARDWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
-			// SOFTWARE T&L
-			if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
-				// REFERENCE RASTERIZE
-				if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
-					MessageBox(NULL, "It failed to generate the Direct3D device", "Error", MB_OK | MB_ICONSTOP);
-					return false;
-				}
-			}
-		}
-	}
-	else {
-		g_mIsUseSoftware = TRUE;	// HARDWARE&SOFTWARE T&L
-		if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_MIXED_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
-			// SOFTWARE T&L
-			if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
-				// REFERENCE RASTERIZE
-				if FAILED(g_pDirect3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_REF, GetWindow(), D3DCREATE_SOFTWARE_VERTEXPROCESSING, &g_md3dpp, &g_pD3DDevice)) {
-					MessageBox(NULL, "It failed to generate the Direct3D device", "Error", MB_OK | MB_ICONSTOP);
-					return false;
-				}
-			}
-		}
-	}
-
-	return true;
+    return InitD3D11(GetWindow(),
+                     static_cast<int>(GetScreenWidth()),
+                     static_cast<int>(GetScreenHeight()));
 }
 
 //======================================================================
-//		DirectXGraphics開放
+//      DX11 解放 (旧 ReleaseD3D 相当)
 //======================================================================
 void ReleaseD3D(void)
 {
-	if (g_pD3DDevice != NULL) g_pD3DDevice->Release();
-	if (g_pDirect3D != NULL) g_pDirect3D->Release();
+    ReleaseD3D11();
 }
 
-
 //======================================================================
-//		頂点バッファ生成
+//      レンダリング
 //======================================================================
-HRESULT CreateVB(LPDIRECT3DVERTEXBUFFER9 *lpVB, DWORD size, DWORD Usage, DWORD fvf)
+void Rendering(void)
 {
-	HRESULT hr = g_pD3DDevice->CreateVertexBuffer(
-		size,
-		Usage,
-		fvf,
-		D3DPOOL_MANAGED,
-		lpVB, NULL);
-	return hr;
+    static unsigned long OldTime = timeGetTime();
+    unsigned long NowTime = timeGetTime();
+    fTime = (float)(NowTime - OldTime) / 1000.0f;
+    OldTime = NowTime;
+
+    static const float clearColor[4] = { 0.2f, 0.2f, 0.4f, 1.0f };
+    GetContext()->ClearRenderTargetView(GetRenderTargetView(), clearColor);
+    GetContext()->ClearDepthStencilView(GetDepthStencilView(),
+        D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    unsigned long poly = 0;
+    poly += g_mArea.Rendering(g_mAt.x, g_mAt.y, g_mAt.z);
+    AdDrawPolygons(poly);
+
+    GetSwapChain()->Present(0, 0);
 }
 
 //======================================================================
-//		インデックスバッファ生成
+//      3D 空間の生成  (Phase6: DirectXMath)
 //======================================================================
-HRESULT CreateIB(LPDIRECT3DINDEXBUFFER9 *lpIB, DWORD size, DWORD Usage)
+bool Create3DSpace(void)
 {
-	HRESULT hr = g_pD3DDevice->CreateIndexBuffer(
-		size,
-		Usage,
-		D3DFMT_INDEX16,
-		D3DPOOL_MANAGED,
-		lpIB, NULL);
-	return hr;
+    // プロジェクション行列
+    StoreM(g_mProjection,
+           XMMatrixPerspectiveFovLH(g_mFov, g_mAspect, g_mNear_z, g_mFar_z));
+
+    // ビュー行列
+    StoreM(g_mEyeMat, XMMatrixIdentity());
+    StoreM(g_mView,
+           XMMatrixLookAtLH(LoadV(g_mEye), LoadV(g_mAt), LoadV(g_mUp)));
+
+    // ライト方向初期化
+    StoreV(g_mLightDirBase,
+           XMVector3Normalize(XMVectorSet(0.3f, -1.0f, 0.3f, 0.f)));
+    g_mLightDir = g_mLightDirBase;
+
+    // g_mViewLight を単位行列で初期化
+    StoreM(g_mViewLight, XMMatrixIdentity());
+
+    return true;
 }
 
 //======================================================================
-//		レンダリング
+//      レンダーステートオブジェクト生成
 //======================================================================
-void Rendering( void )
+static bool CreateRenderStates(void)
 {
-	D3DXVECTOR3		Pos;
-	static unsigned long OldTime = timeGetTime();
-	unsigned long NowTime = timeGetTime();
+    ID3D11Device* dev = GetDevice11();
 
-	fTime = (float)(NowTime - OldTime) / 1000.0f;
-	OldTime = NowTime;
-//	g_mTime += fTime*g_mMotionSpeed;
-
-	// 変換適用（引数はアニメ時間
-
-	//-----------------------------------------------
-	// レンダリング
-	//-----------------------------------------------
-	unsigned long poly = 0;
-	//	ライト位置の計算
-	g_mLightPosition = g_mAt+g_mLightDist*-(D3DXVECTOR3)g_mLight.Direction;
-	D3DXMatrixLookAtLH( &g_mViewLight,&g_mLightPosition,&g_mAt,&g_mUp);
-
-	poly += g_mArea.Rendering(g_mAt.x,g_mAt.y,g_mAt.z);
-	AdDrawPolygons( poly );
+    // ブレンドステート: アルファ合成なし
+    {
+        D3D11_BLEND_DESC bd = {};
+        bd.RenderTarget[0].BlendEnable           = FALSE;
+        bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        if (FAILED(dev->CreateBlendState(&bd, &g_pBlendNone))) return false;
+    }
+    // ブレンドステート: SrcAlpha / InvSrcAlpha
+    {
+        D3D11_BLEND_DESC bd = {};
+        bd.RenderTarget[0].BlendEnable           = TRUE;
+        bd.RenderTarget[0].SrcBlend              = D3D11_BLEND_SRC_ALPHA;
+        bd.RenderTarget[0].DestBlend             = D3D11_BLEND_INV_SRC_ALPHA;
+        bd.RenderTarget[0].BlendOp               = D3D11_BLEND_OP_ADD;
+        bd.RenderTarget[0].SrcBlendAlpha         = D3D11_BLEND_ONE;
+        bd.RenderTarget[0].DestBlendAlpha        = D3D11_BLEND_ZERO;
+        bd.RenderTarget[0].BlendOpAlpha          = D3D11_BLEND_OP_ADD;
+        bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        if (FAILED(dev->CreateBlendState(&bd, &g_pBlendAlpha))) return false;
+    }
+    // ラスタライザ: カリング CCW (通常)
+    {
+        D3D11_RASTERIZER_DESC rd = {};
+        rd.FillMode              = D3D11_FILL_SOLID;
+        rd.CullMode              = D3D11_CULL_BACK;
+        rd.FrontCounterClockwise = FALSE;
+        rd.DepthClipEnable       = TRUE;
+        if (FAILED(dev->CreateRasterizerState(&rd, &g_pRastCCW))) return false;
+    }
+    // ラスタライザ: カリング CW (ミラー反転メッシュ)
+    {
+        D3D11_RASTERIZER_DESC rd = {};
+        rd.FillMode              = D3D11_FILL_SOLID;
+        rd.CullMode              = D3D11_CULL_FRONT;
+        rd.FrontCounterClockwise = FALSE;
+        rd.DepthClipEnable       = TRUE;
+        if (FAILED(dev->CreateRasterizerState(&rd, &g_pRastCW))) return false;
+    }
+    // ラスタライザ: カリングなし (透明・両面)
+    {
+        D3D11_RASTERIZER_DESC rd = {};
+        rd.FillMode              = D3D11_FILL_SOLID;
+        rd.CullMode              = D3D11_CULL_NONE;
+        rd.FrontCounterClockwise = FALSE;
+        rd.DepthClipEnable       = TRUE;
+        if (FAILED(dev->CreateRasterizerState(&rd, &g_pRastNone))) return false;
+    }
+    // 深度ステンシルステート: 深度テスト有効、ステンシル無効
+    {
+        D3D11_DEPTH_STENCIL_DESC dd = {};
+        dd.DepthEnable    = TRUE;
+        dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        dd.DepthFunc      = D3D11_COMPARISON_LESS;
+        if (FAILED(dev->CreateDepthStencilState(&dd, &g_pDSSNormal))) return false;
+    }
+    // サンプラー: リニアフィルタ、ラップ
+    {
+        D3D11_SAMPLER_DESC sd = {};
+        sd.Filter         = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        sd.AddressU       = D3D11_TEXTURE_ADDRESS_WRAP;
+        sd.AddressV       = D3D11_TEXTURE_ADDRESS_WRAP;
+        sd.AddressW       = D3D11_TEXTURE_ADDRESS_WRAP;
+        sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
+        sd.MaxLOD         = D3D11_FLOAT32_MAX;
+        if (FAILED(dev->CreateSamplerState(&sd, &g_pSampler))) return false;
+    }
+    return true;
 }
 
 //======================================================================
-//		3D空間の生成
+//      初期化
 //======================================================================
-bool Create3DSpace( void )
+bool InitRender(void)
 {
-	HRESULT	hr;
-	//===========================================================
-	// バックバッファ取得
-	//===========================================================
-	hr = GetDevice()->GetRenderTarget( 0,&g_pBackBuffer );
-	if FAILED( hr ) return false;
+    char ComboString[128];
+    int  w1, w2, w3;
+    char ww[128];
 
-	//===========================================================
-	// Zバッファ生成
-	//===========================================================
-	hr = GetDevice()->GetDepthStencilSurface( &g_pZBuffer );
-	if FAILED( hr ) return false;
+    if (!Create3DSpace()) {
+        MessageBox(NULL, "It failed to initialize", "Error", MB_OK);
+        return false;
+    }
+    if (!CreateRenderStates()) {
+        MessageBox(NULL, "Failed to create render states", "Error", MB_OK);
+        return false;
+    }
 
-	//===========================================================
-	// プロジェクション行列の設定
-	//===========================================================
-	// 行列生成
-	D3DXMatrixPerspectiveFovLH( &g_mProjection, g_mFov, g_mAspect, g_mNear_z, g_mFar_z );
-
-	//===========================================================
-	// デフォルトのカメラの設定
-	//===========================================================
-	D3DXMatrixIdentity(&g_mEyeMat);
-	D3DXMatrixLookAtLH( &g_mView, &g_mEye, &g_mAt, &g_mUp );
-	//=================================================
-	// レンダリングステート
-	//=================================================
-	float	start	 = 0.0f;
-	float	end		 = 1.0f;
-	GetDevice()->SetRenderState( D3DRS_DITHERENABLE,		TRUE );
-	GetDevice()->SetRenderState( D3DRS_ZENABLE,				TRUE );
-	GetDevice()->SetRenderState( D3DRS_ZWRITEENABLE,		TRUE );
-	GetDevice()->SetRenderState( D3DRS_FOGTABLEMODE,		D3DFOG_NONE );
-	GetDevice()->SetRenderState( D3DRS_FOGVERTEXMODE,		D3DFOG_LINEAR );
-	GetDevice()->SetRenderState( D3DRS_FOGCOLOR,			D3DCOLOR_XRGB(200,200,255) );
-	GetDevice()->SetRenderState( D3DRS_FOGSTART,			*(DWORD*)(&start) );
-	GetDevice()->SetRenderState( D3DRS_FOGEND,				*(DWORD*)(&end) );
-	//=================================================
-	// ライト
-	//=================================================
-	memset( &g_mLight, 0x00, sizeof(D3DLIGHT9) );
-	memset( &g_mLightbase, 0x00, sizeof(D3DLIGHT9) );
-	g_mLight.Type			= D3DLIGHT_DIRECTIONAL;
-	g_mLight.Diffuse.a		= 1.0f;
-	g_mLight.Diffuse.r		= 0.8f;
-	g_mLight.Diffuse.g		= 0.8f;
-	g_mLight.Diffuse.b		= 0.8f;
-	g_mLight.Ambient.a		= 1.0f;
-	g_mLight.Ambient.r		= 0.5f;
-	g_mLight.Ambient.g		= 0.5f;
-	g_mLight.Ambient.b		= 0.5f;
-	g_mLight.Specular.a	= 1.0f;
-	g_mLight.Specular.r	= 0.5f;
-	g_mLight.Specular.g	= 0.5f;
-	g_mLight.Specular.b	= 0.5f;
-	D3DXVec3Normalize( (D3DXVECTOR3*)&g_mLightbase.Direction, &D3DXVECTOR3( 0.3f, -1.0f, 0.3f) );
-	g_mLight.Direction = g_mLightbase.Direction;
-	GetDevice()->SetLight( 0, &g_mLight );
-	GetDevice()->LightEnable( 0, TRUE );
-
-	//===========================================================
-	// ライト方向のカメラの設定
-	//===========================================================
-
-	g_mLightPosition = g_mAt+g_mLightDist*-(D3DXVECTOR3)g_mLight.Direction;
-	D3DXMatrixLookAtLH( &g_mViewLight,&g_mLightPosition,&g_mAt,&g_mUp);
-	return true;
+    GetWindowText(GetDlgItem(hDlg1, IDC_COMBO1), ComboString, sizeof(ComboString));
+    sscanf(ComboString, "%d-%d-%d,%s", &w1, &w2, &w3, ww);
+    g_mArea.SetArea(ConvertStr2Dno2(ComboString));
+    if (!g_mArea.LoadMAP()) return false;
+    g_mArea.CreateVertexShader();
+    return true;
 }
 
 //======================================================================
-//		初期化
+//      開放
 //======================================================================
-bool InitRender( void )
+void UnInitRender(void)
 {
-	D3DXVECTOR3		Pos,Post;
-	char			ComboString[128];
-	int				w1,w2,w3;
-	char			ww[128];
-	//--------------------------------------------------
-	// 初期設定
-	//--------------------------------------------------
-	if ( !Create3DSpace() )
-	{
-		MessageBox( NULL, "It failed to initialize", "Error", MB_OK );
-		return false;
-	}
-	//--------------------------------------------------
-	// モデルデータ読み込み（頂点フォーマットを指定
-	//--------------------------------------------------
-	// unsigned long ModelFVF = (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_TEX1);
-	// MAP 設定
-	GetWindowText(GetDlgItem(hDlg1, IDC_COMBO1), ComboString, sizeof(ComboString));
-	sscanf(ComboString,"%d-%d-%d,%s",&w1,&w2,&w3,ww);
-	g_mArea.SetArea( ConvertStr2Dno2(ComboString) );
-	// MAP 初期設定
-	if( !g_mArea.LoadMAP() ) return false;
-	g_mArea.CreateVertexShader();
-	return true;
+    SAFE_RELEASE(g_pBlendNone);
+    SAFE_RELEASE(g_pBlendAlpha);
+    SAFE_RELEASE(g_pRastCCW);
+    SAFE_RELEASE(g_pRastCW);
+    SAFE_RELEASE(g_pRastNone);
+    SAFE_RELEASE(g_pDSSNormal);
+    SAFE_RELEASE(g_pSampler);
 }
-
-//======================================================================
-//		開放
-//======================================================================
-void UnInitRender( void )
-{
-}
-
-
-

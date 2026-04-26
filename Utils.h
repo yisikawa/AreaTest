@@ -1,7 +1,8 @@
 #pragma once
 
-#include <d3d9.h>
-#include <d3dx9.h>
+#include <windows.h>
+#include <DirectXMath.h>
+using namespace DirectX;
 
 // 文字列操作
 int Trim(char *s);
@@ -14,7 +15,3 @@ float Max5(float v1, float v2, float v3, float v4, float v5);
 
 // パス変換
 bool convert_path(char* src, const char* base);
-
-// 行列・3D演算
-BOOL IsMirrorMatrix(const D3DXMATRIX* pMat);
-D3DXVECTOR3* ComputeFaceNormal(D3DXVECTOR3* pOut, const D3DXVECTOR3* pV0, const D3DXVECTOR3* pV1, const D3DXVECTOR3* pV2);
