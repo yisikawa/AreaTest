@@ -7,7 +7,6 @@ Debug/
 .gitignore
 AreaTest.vcxproj.filters
 Areabkup0517.cpp
-hlsl.fx
 icon1.ico
 AreaTest.opensdf
 AreaTest_project_suppressions.cfg
