@@ -38,6 +38,6 @@ SamplerState samLinear : register(s0);
 float4 PS(PS_INPUT input) : SV_Target
 {
     float4 color = txDiffuse.Sample(samLinear, input.Tex) * input.Col;
-    if (color.a < 0.1) discard; // アルファテストの代わり
+    if (color.a < padding.x) discard;
     return color;
 }

@@ -120,7 +120,7 @@ public:
 	virtual void            DecodeMZB(BYTE* p);
 	virtual HRESULT         LoadAreaFromFile( char *filename, unsigned long FVF );
 	virtual void            InitData(void);
-	virtual unsigned long   Rendering( float PosX, float PosY, float PosZ );
+	virtual unsigned long   Rendering( float PosX, float PosY, float PosZ, float alphaRef = 0.1f );
 	virtual bool            CreateVertexShader( void );
 	virtual bool            LoadMAP( void );
 	virtual int             GetArea(void) { return m_mArea; }
