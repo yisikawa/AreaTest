@@ -779,7 +779,7 @@ HRESULT CArea::LoadAreaFromFile(char* FileName, unsigned long FVF)
 //======================================================================
 // レンダリング (Phase 5: DX11)
 //======================================================================
-unsigned long CArea::Rendering(float PosX, float PosY, float PosZ)
+unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRef)
 {
     if (!m_pVS || !m_pPS || !m_pInputLayout || !m_pCB) return 0;
 
@@ -834,13 +834,20 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ)
         bool isMirror = IsMirrorMatrix(&m_pObjInfo[i].mMat);
 
         for (auto& s : pAreaMesh->m_LStreams) {
-            // ラスタライザ
-            if (s.GetAlphaFlag() & 0x02 || s.GetStencilFlag())
-                ctx->RSSetState(GetRastNone());
-            else if (isMirror)
-                ctx->RSSetState(GetRastCW());
-            else
-                ctx->RSSetState(GetRastCCW());
+            // ラスタライザ (DX9互換: プリミティブ型で分岐)
+            auto topo = s.GetPrimitiveType();
+            bool isTriangle = (topo == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP ||
+                               topo == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            if (isTriangle) {
+                ctx->RSSetState(isMirror ? GetRastCW() : GetRastCCW());
+            } else {
+                bool scaleMirror = (m_pObjInfo[i].mObj.fScaleX *
+                                    m_pObjInfo[i].mObj.fScaleZ) < 0.f;
+                if (s.GetAlphaFlag() & 0x02 || s.GetStencilFlag())
+                    ctx->RSSetState(GetRastNone());
+                else
+                    ctx->RSSetState(scaleMirror ? GetRastCW() : GetRastCCW());
+            }
 
             // ブレンド
             float bf[4] = {};
@@ -855,7 +862,7 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ)
             CBData* cb = (CBData*)msr.pData;
             XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
             cb->mUV[0] = 0.f; cb->mUV[1] = 0.f;
-            cb->padding[0] = 0.f; cb->padding[1] = 0.f;
+            cb->padding[0] = s.GetStencilFlag() ? alphaRef : 0.0f; cb->padding[1] = 0.f;
             cb->mCOL = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
             ctx->Unmap(m_pCB, 0);
 
