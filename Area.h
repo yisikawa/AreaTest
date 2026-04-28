@@ -96,6 +96,18 @@ protected:
 	ID3D11VertexShader* m_pVS;
 	ID3D11PixelShader*  m_pPS;
 	ID3D11Buffer*       m_pCB;
+
+	// Shadow map
+	static const UINT          SHADOW_MAP_SIZE = 2048;
+	ID3D11Texture2D*           m_pShadowTex;
+	ID3D11DepthStencilView*    m_pShadowDSV;
+	ID3D11ShaderResourceView*  m_pShadowSRV;
+	ID3D11VertexShader*        m_pShadowVS;
+	ID3D11InputLayout*         m_pShadowLayout;
+	ID3D11Buffer*              m_pShadowCB;
+	D3D11_VIEWPORT             m_shadowVP;
+	XMFLOAT4X4                 m_mLightVP;
+
 	unsigned long       m_VertexSize;
 	XMFLOAT4X4          m_mRootTransform;
 	CList               m_AreaMeshs, m_EffMeshs;
@@ -122,6 +134,9 @@ public:
 	virtual void            InitData(void);
 	virtual unsigned long   Rendering( float PosX, float PosY, float PosZ, float alphaRef = 0.1f );
 	virtual bool            CreateVertexShader( void );
+	virtual bool            InitShadowMap( void );
+	virtual void            ShadowPass( float PosX, float PosZ );
+	virtual void            ReleaseShadowMap( void );
 	virtual bool            LoadMAP( void );
 	virtual int             GetArea(void) { return m_mArea; }
 	virtual void            SetArea( int mArea ) { m_mArea = mArea; }
