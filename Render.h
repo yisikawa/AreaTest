@@ -11,14 +11,20 @@
 #define IDC_STATIC -1
 
 //======================================================================
-// 定数バッファ構造体 (hlsl.fx に対応: 96 バイト)
+// 定数バッファ構造体 (hlsl.fx に対応: 240 バイト)
 //======================================================================
 struct CBData
 {
-    XMFLOAT4X4 mWVP;      // 64 bytes
-    float      mUV[2];    //  8 bytes
-    float      padding[2];//  8 bytes
-    XMFLOAT4   mCOL;      // 16 bytes
+    XMFLOAT4X4 mWVP;          //  64 bytes
+    float      mUV[2];        //   8 bytes
+    float      padding[2];    //   8 bytes
+    XMFLOAT4   mCOL;          //  16 bytes
+    XMFLOAT4X4 mW;            //  64 bytes  ワールド行列
+    XMFLOAT4   mLightDir;     //  16 bytes  太陽方向(ワールド空間)
+    XMFLOAT4   mLightColor;   //  16 bytes  太陽光色 × 強度
+    XMFLOAT4   mAmbientColor; //  16 bytes  環境光色
+    XMFLOAT4   mCameraPos;    //  16 bytes  カメラワールド座標
+    XMFLOAT4   mSpecular;     //  16 bytes  x=shininess, y=強度
 };
 
 //======================================================================
