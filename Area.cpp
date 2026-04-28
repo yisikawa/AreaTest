@@ -156,11 +156,19 @@ static HRESULT SaveTextureToPNG(const char* path, CTexture* pTex)
 //======================================================================
 CArea::CArea()
 {
-    m_pInputLayout = nullptr;
-    m_pVS          = nullptr;
-    m_pPS          = nullptr;
-    m_pCB          = nullptr;
-    m_mArea        = 0;
+    m_pInputLayout  = nullptr;
+    m_pVS           = nullptr;
+    m_pPS           = nullptr;
+    m_pCB           = nullptr;
+    m_pShadowTex    = nullptr;
+    m_pShadowDSV    = nullptr;
+    m_pShadowSRV    = nullptr;
+    m_pShadowVS     = nullptr;
+    m_pShadowLayout = nullptr;
+    m_pShadowCB     = nullptr;
+    memset(&m_shadowVP, 0, sizeof(m_shadowVP));
+    StoreM(m_mLightVP, XMMatrixIdentity());
+    m_mArea         = 0;
     m_VertexSize   = 0;
     m_Textures.Init();
     StoreM(m_mRootTransform, XMMatrixScaling(1.f, -1.f, 1.f));
@@ -179,6 +187,7 @@ CArea::~CArea()
     SAFE_RELEASE(m_pVS);
     SAFE_RELEASE(m_pPS);
     SAFE_RELEASE(m_pCB);
+    ReleaseShadowMap();
     m_Textures.Release();
     CAreaMesh* pAreaMesh = (CAreaMesh*)m_AreaMeshs.Top();
     while (pAreaMesh) {
@@ -651,6 +660,149 @@ bool CArea::CreateVertexShader(void)
 }
 
 //======================================================================
+// シャドウマップ初期化
+//======================================================================
+bool CArea::InitShadowMap()
+{
+    ID3D11Device* dev = GetDevice11();
+
+    // 深度テクスチャ (R32_TYPELESS: DSV と SRV を同時バインド可)
+    D3D11_TEXTURE2D_DESC td = {};
+    td.Width = td.Height  = SHADOW_MAP_SIZE;
+    td.MipLevels = td.ArraySize = 1;
+    td.Format         = DXGI_FORMAT_R32_TYPELESS;
+    td.SampleDesc.Count = 1;
+    td.BindFlags      = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+    if (FAILED(dev->CreateTexture2D(&td, nullptr, &m_pShadowTex))) return false;
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC dvd = {};
+    dvd.Format        = DXGI_FORMAT_D32_FLOAT;
+    dvd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    if (FAILED(dev->CreateDepthStencilView(m_pShadowTex, &dvd, &m_pShadowDSV))) return false;
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvd = {};
+    srvd.Format                    = DXGI_FORMAT_R32_FLOAT;
+    srvd.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvd.Texture2D.MipLevels       = 1;
+    if (FAILED(dev->CreateShaderResourceView(m_pShadowTex, &srvd, &m_pShadowSRV))) return false;
+
+    // shadow.fx のコンパイルと VS 生成
+    ID3DBlob* pVSBlob  = nullptr;
+    ID3DBlob* pErrBlob = nullptr;
+    if (FAILED(D3DCompileFromFile(L"shadow.fx", nullptr, nullptr,
+                                  "VS", "vs_4_0", 0, 0, &pVSBlob, &pErrBlob))) {
+        if (pErrBlob) pErrBlob->Release();
+        return false;
+    }
+    HRESULT hr = dev->CreateVertexShader(pVSBlob->GetBufferPointer(),
+                                         pVSBlob->GetBufferSize(), nullptr, &m_pShadowVS);
+    if (FAILED(hr)) { pVSBlob->Release(); return false; }
+
+    // POSITION のみの入力レイアウト (頂点バッファの先頭 float3 を使用)
+    D3D11_INPUT_ELEMENT_DESC layout[] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    hr = dev->CreateInputLayout(layout, 1,
+                                pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(),
+                                &m_pShadowLayout);
+    pVSBlob->Release();
+    if (FAILED(hr)) return false;
+
+    hr = CreateBuffer11(&m_pShadowCB, sizeof(XMFLOAT4X4), D3D11_BIND_CONSTANT_BUFFER);
+    if (FAILED(hr)) return false;
+
+    m_shadowVP = { 0.f, 0.f, (float)SHADOW_MAP_SIZE, (float)SHADOW_MAP_SIZE, 0.f, 1.f };
+    return true;
+}
+
+//======================================================================
+// シャドウパス (ライト視点からの深度書き込み)
+//======================================================================
+void CArea::ShadowPass(float PosX, float PosZ)
+{
+    if (!m_pShadowVS || !m_pShadowDSV || !m_pShadowCB) return;
+
+    ID3D11DeviceContext* ctx = GetContext();
+
+    // ライトの VP 行列を計算 (平行光源 → 正射影)
+    XMVECTOR lightDir    = XMVector3Normalize(LoadV(g_mLightDir));
+    XMVECTOR sceneCenter = XMVectorSet(PosX, 20.f, PosZ, 1.f);
+    XMVECTOR lightPos    = sceneCenter - lightDir * 600.f;
+
+    XMVECTOR up = XMVectorSet(0.f, 1.f, 0.f, 0.f);
+    if (fabsf(XMVectorGetY(lightDir)) > 0.99f)
+        up = XMVectorSet(0.f, 0.f, 1.f, 0.f);
+
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, sceneCenter, up);
+    XMMATRIX lightProj = XMMatrixOrthographicLH(1000.f, 1000.f, 1.f, 1400.f);
+    XMMATRIX lightVP   = XMMatrixMultiply(lightView, lightProj);
+    StoreM(m_mLightVP, lightVP);
+
+    // 前フレームの shadow SRV をアンバインドしてから DSV にセット
+    ID3D11ShaderResourceView* nullSrv = nullptr;
+    ctx->PSSetShaderResources(1, 1, &nullSrv);
+
+    UINT numVP = 1;
+    D3D11_VIEWPORT savedVP;
+    ctx->RSGetViewports(&numVP, &savedVP);
+
+    ctx->OMSetRenderTargets(0, nullptr, m_pShadowDSV);
+    ctx->ClearDepthStencilView(m_pShadowDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+    ctx->RSSetViewports(1, &m_shadowVP);
+    ctx->IASetInputLayout(m_pShadowLayout);
+    ctx->VSSetShader(m_pShadowVS, nullptr, 0);
+    ctx->PSSetShader(nullptr, nullptr, 0);
+    ctx->VSSetConstantBuffers(0, 1, &m_pShadowCB);
+    ctx->RSSetState(GetRastCCW());
+
+    XMMATRIX rootWorld = LoadM(m_mRootTransform);
+
+    for (int i = 0; i < m_nObj; i++) {
+        CAreaMesh* pAreaMesh = m_pObjInfo[i].pAreaMesh;
+        if (!pAreaMesh) continue;
+
+        XMMATRIX world = XMMatrixMultiply(LoadM(m_pObjInfo[i].mMat), rootWorld);
+        XMMATRIX wvp   = XMMatrixMultiply(world, lightVP);
+
+        XMFLOAT4X4 wvpT;
+        XMStoreFloat4x4(&wvpT, XMMatrixTranspose(wvp));
+
+        D3D11_MAPPED_SUBRESOURCE msr = {};
+        ctx->Map(m_pShadowCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
+        memcpy(msr.pData, &wvpT, sizeof(XMFLOAT4X4));
+        ctx->Unmap(m_pShadowCB, 0);
+
+        UINT stride = sizeof(D3DTEXVERTEX), offset = 0;
+        ID3D11Buffer* vb = pAreaMesh->GetlpVB();
+        ctx->IASetVertexBuffers(0, 1, &vb, &stride, &offset);
+        ctx->IASetIndexBuffer(pAreaMesh->GetlpIB(), DXGI_FORMAT_R16_UINT, 0);
+
+        for (auto& s : pAreaMesh->m_LStreams) {
+            ctx->IASetPrimitiveTopology(s.GetPrimitiveType());
+            ctx->DrawIndexed((UINT)s.GetFaceCount() + 2, (UINT)s.GetIndexStart(), 0);
+        }
+    }
+
+    // メインパスのレンダーターゲットとビューポートを復元
+    ID3D11RenderTargetView* rtv = GetRenderTargetView();
+    ctx->OMSetRenderTargets(1, &rtv, GetDepthStencilView());
+    ctx->RSSetViewports(1, &savedVP);
+}
+
+//======================================================================
+// シャドウマップ解放
+//======================================================================
+void CArea::ReleaseShadowMap()
+{
+    SAFE_RELEASE(m_pShadowCB);
+    SAFE_RELEASE(m_pShadowLayout);
+    SAFE_RELEASE(m_pShadowVS);
+    SAFE_RELEASE(m_pShadowSRV);
+    SAFE_RELEASE(m_pShadowDSV);
+    SAFE_RELEASE(m_pShadowTex);
+}
+
+//======================================================================
 // エリアメッシュ読み込み (Phase 6: DirectXMath)
 //======================================================================
 HRESULT CArea::LoadAreaFromFile(char* FileName, unsigned long FVF)
@@ -784,6 +936,9 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
 {
     if (!m_pVS || !m_pPS || !m_pInputLayout || !m_pCB) return 0;
 
+    // シャドウパス (メインパスより前に実行)
+    ShadowPass(PosX, PosZ);
+
     CAreaMesh* pAreaMesh;
     float DispArea;
     unsigned long count = 0;
@@ -871,12 +1026,17 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
             cb->mAmbientColor = XMFLOAT4(0.2f, 0.22f, 0.3f, 1.f);
             cb->mCameraPos    = XMFLOAT4(g_mEye.x, g_mEye.y, g_mEye.z, 1.f);
             cb->mSpecular     = XMFLOAT4(32.f, 0.3f, 0.f, 0.f);
+            XMStoreFloat4x4(&cb->mLightVP, XMMatrixTranspose(LoadM(m_mLightVP)));
+            cb->mShadow       = XMFLOAT4(0.002f, -1.0f, 1.0f / SHADOW_MAP_SIZE, 0.f);
             ctx->Unmap(m_pCB, 0);
 
             // テクスチャ
             CTexture* pTex = s.GetpTexture();
             ID3D11ShaderResourceView* srv = pTex ? pTex->GetTexture() : nullptr;
             ctx->PSSetShaderResources(0, 1, &srv);
+            ctx->PSSetShaderResources(1, 1, &m_pShadowSRV); // t1: shadow map
+            ID3D11SamplerState* shadowSam = GetShadowSampler();
+            ctx->PSSetSamplers(1, 1, &shadowSam);            // s1: 比較サンプラー
 
             ctx->IASetPrimitiveTopology(s.GetPrimitiveType());
             ctx->DrawIndexed((UINT)s.GetFaceCount() + 2, (UINT)s.GetIndexStart(), 0);

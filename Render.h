@@ -11,7 +11,7 @@
 #define IDC_STATIC -1
 
 //======================================================================
-// 定数バッファ構造体 (hlsl.fx に対応: 240 バイト)
+// 定数バッファ構造体 (hlsl.fx に対応: 320 バイト)
 //======================================================================
 struct CBData
 {
@@ -25,6 +25,8 @@ struct CBData
     XMFLOAT4   mAmbientColor; //  16 bytes  環境光色
     XMFLOAT4   mCameraPos;    //  16 bytes  カメラワールド座標
     XMFLOAT4   mSpecular;     //  16 bytes  x=shininess, y=強度
+    XMFLOAT4X4 mLightVP;      //  64 bytes  ライトのView×Projection
+    XMFLOAT4   mShadow;       //  16 bytes  x=depthBias, y=shadow強度, z=1/shadowMapSize
 };
 
 //======================================================================
@@ -49,3 +51,4 @@ ID3D11RasterizerState*   GetRastCW(void);
 ID3D11RasterizerState*   GetRastNone(void);
 ID3D11DepthStencilState* GetDSSNormal(void);
 ID3D11SamplerState*      GetSampler(void);
+ID3D11SamplerState*      GetShadowSampler(void);
