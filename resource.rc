@@ -1,4 +1,4 @@
-﻿// Microsoft Visual C++ generated resource script.
+// Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
 
@@ -39,9 +39,9 @@ BEGIN
         MENUITEM "Area select",                 ID_MNU_OASPD,MFT_STRING,MFS_ENABLED
         POPUP "Window size",                    65535,MFT_STRING,MFS_ENABLED
         BEGIN
-            MENUITEM "320 X 240(&0)",               ID_MNU_W320,MFT_STRING,MFS_ENABLED
-            MENUITEM "640 X 480 (&1)",              ID_MNU_W640,MFT_STRING,MFS_ENABLED
-            MENUITEM "800 X 600 (&2)",              ID_MNU_W800,MFT_STRING,MFS_ENABLED
+            MENUITEM "320 X 180 (&0)",               ID_MNU_W320,MFT_STRING,MFS_ENABLED
+            MENUITEM "640 X 360 (&1)",              ID_MNU_W640,MFT_STRING,MFS_ENABLED
+            MENUITEM "800 X 450 (&2)",              ID_MNU_W800,MFT_STRING,MFS_ENABLED
             MENUITEM "1280 X 720 (&3)",             ID_MNU_W1280,MFT_STRING,MFS_ENABLED
             MENUITEM "1920 X 1080(&4)",             ID_MNU_W1920,MFT_STRING,MFS_ENABLED
         END
