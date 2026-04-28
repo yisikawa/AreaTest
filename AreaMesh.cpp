@@ -185,9 +185,9 @@ HRESULT CAreaMesh::LoadAreaMesh(char* pFile, CArea* pArea, unsigned long FVF)
             nVertex  = (int)*(short*)(Pos + 16);
             nVerReal = (int)*(int*)(Pos + 16);
             AlphaFlag = (short)((nVerReal >> 28) & 0x0f);
-            if (nVertex > 0xffff || nVertex < 0) return -1;
+            if (nVertex > 0xffff || nVertex <= 0) return -1;
             nIndex   = *(int*)(Pos + 16 + 4 + nVertex * 36);
-            if (nIndex > 0xffff || nIndex < 0) return -1;
+            if (nIndex > 0xffff || nIndex <= 0) return -1;
             NextPos  = 16 + 4 + nVertex * 36 + 4 + nIndex * 2;
             NextPos  = 4 * ((NextPos + 3) / 4);
 
