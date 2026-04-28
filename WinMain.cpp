@@ -564,27 +564,27 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
         if (LOWORD(wParam) == ID_MNU_OASPD) ShowWindow(hDlg1, SW_SHOW);
         if (LOWORD(wParam) == ID_MNU_W320) {
             long ww2 = 320+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 240+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
+            long hh2 = 180+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
             MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=320; g_mScreenHeight=240;
+            g_mScreenWidth=320; g_mScreenHeight=180;
         }
         if (LOWORD(wParam) == ID_MNU_W640) {
             long ww2 = 640+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 480+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
+            long hh2 = 360+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
             MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=640; g_mScreenHeight=480;
+            g_mScreenWidth=640; g_mScreenHeight=360;
         }
         if (LOWORD(wParam) == ID_MNU_W800) {
             long ww2 = 800+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 600+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
+            long hh2 = 450+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
             MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=800; g_mScreenHeight=600;
+            g_mScreenWidth=800; g_mScreenHeight=450;
         }
         if (LOWORD(wParam) == ID_MNU_W1280) {
             long ww2 = 1280+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
             long hh2 =  720+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
             MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=1280; g_mScreenHeight=720;
+			g_mScreenWidth = 1280; g_mScreenHeight = 720;
         }
         if (LOWORD(wParam) == ID_MNU_W1920) {
             long ww2 = 1920+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
@@ -592,11 +592,11 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
             g_mScreenWidth=1920; g_mScreenHeight=1080;
         }
-        if (LOWORD(wParam) == ID_MNU_W1600) {
-            long ww2 = 1600+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 1200+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
+        if (LOWORD(wParam) == ID_MNU_W2560) {
+            long ww2 = 2560+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
+            long hh2 = 1440+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
             MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=1600; g_mScreenHeight=1200;
+            g_mScreenWidth=2560; g_mScreenHeight=1440;
         }
         if (LOWORD(wParam) == ID_MNU_META) {
             sfn.lpstrTitle = "MQO Save";

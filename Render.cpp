@@ -29,7 +29,7 @@ extern  HWND        hDlg1, hTrack;
 extern  float       g_mDispArea;
 extern  float       g_mDispTree;
 float               g_mFov          = PAI / 4.f;
-float               g_mAspect       = 1.34f;
+float               g_mAspect		= 1.78f;
 float               g_mNear_z       = 0.1f;
 float               g_mFar_z        = 1400.0f;
 
