@@ -128,7 +128,7 @@ void Rendering(void)
     fTime = (float)(NowTime - OldTime) / 1000.0f;
     OldTime = NowTime;
 
-    static const float clearColor[4] = { 0.2f, 0.2f, 0.4f, 1.0f };
+    static const float clearColor[4] = { 0.8f, 0.85f, 0.9f, 1.0f };
     GetContext()->ClearRenderTargetView(GetRenderTargetView(), clearColor);
     GetContext()->ClearDepthStencilView(GetDepthStencilView(),
         D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
