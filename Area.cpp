@@ -22,6 +22,7 @@ constexpr float PAI2 = PAI * 2.0f;
 extern BOOL       g_mIsUseSoftware;
 extern XMFLOAT4X4 g_mProjection, g_mView;
 extern XMFLOAT3   g_mAt, g_mEye, g_mUp;
+extern XMFLOAT3   g_mLightDir;
 extern float      g_mTime;
 extern float      g_mDispArea;
 extern float      g_mDispTree;
@@ -864,6 +865,12 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
             cb->mUV[0] = 0.f; cb->mUV[1] = 0.f;
             cb->padding[0] = s.GetStencilFlag() ? alphaRef : 0.0f; cb->padding[1] = 0.f;
             cb->mCOL = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
+            XMStoreFloat4x4(&cb->mW, XMMatrixTranspose(world));
+            cb->mLightDir     = XMFLOAT4(g_mLightDir.x, g_mLightDir.y, g_mLightDir.z, 0.f);
+            cb->mLightColor   = XMFLOAT4(1.0f, 0.95f, 0.8f, 1.f);
+            cb->mAmbientColor = XMFLOAT4(0.2f, 0.22f, 0.3f, 1.f);
+            cb->mCameraPos    = XMFLOAT4(g_mEye.x, g_mEye.y, g_mEye.z, 1.f);
+            cb->mSpecular     = XMFLOAT4(32.f, 0.3f, 0.f, 0.f);
             ctx->Unmap(m_pCB, 0);
 
             // テクスチャ
