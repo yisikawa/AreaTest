@@ -64,7 +64,8 @@ static ID3D11RasterizerState*   g_pRastCCW      = nullptr;
 static ID3D11RasterizerState*   g_pRastCW       = nullptr;
 static ID3D11RasterizerState*   g_pRastNone     = nullptr;
 static ID3D11DepthStencilState* g_pDSSNormal    = nullptr;
-static ID3D11SamplerState*      g_pSampler      = nullptr;
+static ID3D11SamplerState*      g_pSampler       = nullptr;
+static ID3D11SamplerState*      g_pShadowSampler = nullptr;
 
 //======================================================================
 // アクセサ
@@ -75,7 +76,8 @@ ID3D11RasterizerState*   GetRastCCW(void)     { return g_pRastCCW; }
 ID3D11RasterizerState*   GetRastCW(void)      { return g_pRastCW; }
 ID3D11RasterizerState*   GetRastNone(void)    { return g_pRastNone; }
 ID3D11DepthStencilState* GetDSSNormal(void)   { return g_pDSSNormal; }
-ID3D11SamplerState*      GetSampler(void)     { return g_pSampler; }
+ID3D11SamplerState*      GetSampler(void)       { return g_pSampler; }
+ID3D11SamplerState*      GetShadowSampler(void) { return g_pShadowSampler; }
 
 //======================================================================
 //      DX11 バッファ生成 (Phase2)
@@ -236,6 +238,18 @@ static bool CreateRenderStates(void)
         sd.MaxLOD         = D3D11_FLOAT32_MAX;
         if (FAILED(dev->CreateSamplerState(&sd, &g_pSampler))) return false;
     }
+    // 比較サンプラー: シャドウマップ用 (GREATER_EQUAL, ボーダー=白=受光)
+    {
+        D3D11_SAMPLER_DESC sd = {};
+        sd.Filter         = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+        sd.AddressU       = D3D11_TEXTURE_ADDRESS_BORDER;
+        sd.AddressV       = D3D11_TEXTURE_ADDRESS_BORDER;
+        sd.AddressW       = D3D11_TEXTURE_ADDRESS_BORDER;
+        sd.BorderColor[0] = sd.BorderColor[1] = sd.BorderColor[2] = sd.BorderColor[3] = 1.0f;
+        sd.ComparisonFunc = D3D11_COMPARISON_GREATER_EQUAL;
+        sd.MaxLOD         = D3D11_FLOAT32_MAX;
+        if (FAILED(dev->CreateSamplerState(&sd, &g_pShadowSampler))) return false;
+    }
     return true;
 }
 
@@ -262,6 +276,10 @@ bool InitRender(void)
     g_mArea.SetArea(ConvertStr2Dno2(ComboString));
     if (!g_mArea.LoadMAP()) return false;
     g_mArea.CreateVertexShader();
+    if (!g_mArea.InitShadowMap()) {
+        MessageBox(NULL, "Failed to init shadow map", "Error", MB_OK);
+        return false;
+    }
     return true;
 }
 
@@ -277,4 +295,5 @@ void UnInitRender(void)
     SAFE_RELEASE(g_pRastNone);
     SAFE_RELEASE(g_pDSSNormal);
     SAFE_RELEASE(g_pSampler);
+    SAFE_RELEASE(g_pShadowSampler);
 }
