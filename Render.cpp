@@ -246,7 +246,7 @@ static bool CreateRenderStates(void)
         sd.AddressV       = D3D11_TEXTURE_ADDRESS_BORDER;
         sd.AddressW       = D3D11_TEXTURE_ADDRESS_BORDER;
         sd.BorderColor[0] = sd.BorderColor[1] = sd.BorderColor[2] = sd.BorderColor[3] = 1.0f;
-        sd.ComparisonFunc = D3D11_COMPARISON_GREATER_EQUAL;
+        sd.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
         sd.MaxLOD         = D3D11_FLOAT32_MAX;
         if (FAILED(dev->CreateSamplerState(&sd, &g_pShadowSampler))) return false;
     }

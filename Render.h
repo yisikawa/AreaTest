@@ -19,6 +19,7 @@ struct CBData
     float      mUV[2];        //   8 bytes
     float      padding[2];    //   8 bytes
     XMFLOAT4   mCOL;          //  16 bytes
+    XMFLOAT4X4 mN;            //  64 bytes  normal matrix
     XMFLOAT4X4 mW;            //  64 bytes  ワールド行列
     XMFLOAT4   mLightDir;     //  16 bytes  太陽方向(ワールド空間)
     XMFLOAT4   mLightColor;   //  16 bytes  太陽光色 × 強度
@@ -27,6 +28,12 @@ struct CBData
     XMFLOAT4   mSpecular;     //  16 bytes  x=shininess, y=強度
     XMFLOAT4X4 mLightVP;      //  64 bytes  ライトのView×Projection
     XMFLOAT4   mShadow;       //  16 bytes  x=depthBias, y=shadow強度, z=1/shadowMapSize
+};
+
+struct ShadowCBData
+{
+    XMFLOAT4X4 mWVP;
+    XMFLOAT4   mShadow;       // x=alphaRef
 };
 
 //======================================================================
