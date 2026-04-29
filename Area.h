@@ -103,6 +103,7 @@ protected:
 	ID3D11DepthStencilView*    m_pShadowDSV;
 	ID3D11ShaderResourceView*  m_pShadowSRV;
 	ID3D11VertexShader*        m_pShadowVS;
+	ID3D11PixelShader*         m_pShadowPS;
 	ID3D11InputLayout*         m_pShadowLayout;
 	ID3D11Buffer*              m_pShadowCB;
 	D3D11_VIEWPORT             m_shadowVP;
@@ -135,7 +136,7 @@ public:
 	virtual unsigned long   Rendering( float PosX, float PosY, float PosZ, float alphaRef = 0.1f );
 	virtual bool            CreateVertexShader( void );
 	virtual bool            InitShadowMap( void );
-	virtual void            ShadowPass( float PosX, float PosZ );
+	virtual void            ShadowPass( float PosX, float PosZ, float alphaRef );
 	virtual void            ReleaseShadowMap( void );
 	virtual bool            LoadMAP( void );
 	virtual int             GetArea(void) { return m_mArea; }

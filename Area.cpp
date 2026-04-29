@@ -164,6 +164,7 @@ CArea::CArea()
     m_pShadowDSV    = nullptr;
     m_pShadowSRV    = nullptr;
     m_pShadowVS     = nullptr;
+    m_pShadowPS     = nullptr;
     m_pShadowLayout = nullptr;
     m_pShadowCB     = nullptr;
     memset(&m_shadowVP, 0, sizeof(m_shadowVP));
@@ -688,6 +689,7 @@ bool CArea::InitShadowMap()
 
     // shadow.fx のコンパイルと VS 生成
     ID3DBlob* pVSBlob  = nullptr;
+    ID3DBlob* pPSBlob  = nullptr;
     ID3DBlob* pErrBlob = nullptr;
     if (FAILED(D3DCompileFromFile(L"shadow.fx", nullptr, nullptr,
                                   "VS", "vs_4_0", 0, 0, &pVSBlob, &pErrBlob))) {
@@ -701,14 +703,25 @@ bool CArea::InitShadowMap()
     // POSITION のみの入力レイアウト (頂点バッファの先頭 float3 を使用)
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
-    hr = dev->CreateInputLayout(layout, 1,
+    hr = dev->CreateInputLayout(layout, 2,
                                 pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(),
                                 &m_pShadowLayout);
     pVSBlob->Release();
     if (FAILED(hr)) return false;
 
-    hr = CreateBuffer11(&m_pShadowCB, sizeof(XMFLOAT4X4), D3D11_BIND_CONSTANT_BUFFER);
+    if (FAILED(D3DCompileFromFile(L"shadow.fx", nullptr, nullptr,
+                                  "PS", "ps_4_0", 0, 0, &pPSBlob, &pErrBlob))) {
+        if (pErrBlob) pErrBlob->Release();
+        return false;
+    }
+    hr = dev->CreatePixelShader(pPSBlob->GetBufferPointer(),
+                                pPSBlob->GetBufferSize(), nullptr, &m_pShadowPS);
+    pPSBlob->Release();
+    if (FAILED(hr)) return false;
+
+    hr = CreateBuffer11(&m_pShadowCB, sizeof(ShadowCBData), D3D11_BIND_CONSTANT_BUFFER);
     if (FAILED(hr)) return false;
 
     m_shadowVP = { 0.f, 0.f, (float)SHADOW_MAP_SIZE, (float)SHADOW_MAP_SIZE, 0.f, 1.f };
@@ -718,9 +731,9 @@ bool CArea::InitShadowMap()
 //======================================================================
 // シャドウパス (ライト視点からの深度書き込み)
 //======================================================================
-void CArea::ShadowPass(float PosX, float PosZ)
+void CArea::ShadowPass(float PosX, float PosZ, float alphaRef)
 {
-    if (!m_pShadowVS || !m_pShadowDSV || !m_pShadowCB) return;
+    if (!m_pShadowVS || !m_pShadowPS || !m_pShadowDSV || !m_pShadowCB) return;
 
     ID3D11DeviceContext* ctx = GetContext();
 
@@ -751,8 +764,11 @@ void CArea::ShadowPass(float PosX, float PosZ)
     ctx->RSSetViewports(1, &m_shadowVP);
     ctx->IASetInputLayout(m_pShadowLayout);
     ctx->VSSetShader(m_pShadowVS, nullptr, 0);
-    ctx->PSSetShader(nullptr, nullptr, 0);
+    ctx->PSSetShader(m_pShadowPS, nullptr, 0);
     ctx->VSSetConstantBuffers(0, 1, &m_pShadowCB);
+    ctx->PSSetConstantBuffers(0, 1, &m_pShadowCB);
+    ID3D11SamplerState* samp = GetSampler();
+    ctx->PSSetSamplers(0, 1, &samp);
     ctx->RSSetState(GetRastCCW());
 
     XMMATRIX rootWorld = LoadM(m_mRootTransform);
@@ -767,17 +783,24 @@ void CArea::ShadowPass(float PosX, float PosZ)
         XMFLOAT4X4 wvpT;
         XMStoreFloat4x4(&wvpT, XMMatrixTranspose(wvp));
 
-        D3D11_MAPPED_SUBRESOURCE msr = {};
-        ctx->Map(m_pShadowCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
-        memcpy(msr.pData, &wvpT, sizeof(XMFLOAT4X4));
-        ctx->Unmap(m_pShadowCB, 0);
-
         UINT stride = sizeof(D3DTEXVERTEX), offset = 0;
         ID3D11Buffer* vb = pAreaMesh->GetlpVB();
         ctx->IASetVertexBuffers(0, 1, &vb, &stride, &offset);
         ctx->IASetIndexBuffer(pAreaMesh->GetlpIB(), DXGI_FORMAT_R16_UINT, 0);
 
         for (auto& s : pAreaMesh->m_LStreams) {
+            CTexture* pTex = s.GetpTexture();
+            ID3D11ShaderResourceView* srv = pTex ? pTex->GetTexture() : nullptr;
+
+            D3D11_MAPPED_SUBRESOURCE msr = {};
+            ctx->Map(m_pShadowCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
+            ShadowCBData* cb = (ShadowCBData*)msr.pData;
+            cb->mWVP = wvpT;
+            cb->mShadow = XMFLOAT4((s.GetStencilFlag() && srv) ? alphaRef : 0.0f, 0.f, 0.f, 0.f);
+            ctx->Unmap(m_pShadowCB, 0);
+
+            ctx->PSSetShaderResources(0, 1, &srv);
+
             ctx->IASetPrimitiveTopology(s.GetPrimitiveType());
             ctx->DrawIndexed((UINT)s.GetFaceCount() + 2, (UINT)s.GetIndexStart(), 0);
         }
@@ -796,6 +819,7 @@ void CArea::ReleaseShadowMap()
 {
     SAFE_RELEASE(m_pShadowCB);
     SAFE_RELEASE(m_pShadowLayout);
+    SAFE_RELEASE(m_pShadowPS);
     SAFE_RELEASE(m_pShadowVS);
     SAFE_RELEASE(m_pShadowSRV);
     SAFE_RELEASE(m_pShadowDSV);
@@ -937,7 +961,7 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
     if (!m_pVS || !m_pPS || !m_pInputLayout || !m_pCB) return 0;
 
     // シャドウパス (メインパスより前に実行)
-    ShadowPass(PosX, PosZ);
+    ShadowPass(PosX, PosZ, alphaRef);
 
     CAreaMesh* pAreaMesh;
     float DispArea;
@@ -1020,6 +1044,8 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
             cb->mUV[0] = 0.f; cb->mUV[1] = 0.f;
             cb->padding[0] = s.GetStencilFlag() ? alphaRef : 0.0f; cb->padding[1] = 0.f;
             cb->mCOL = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
+            XMMATRIX normal = XMMatrixInverse(nullptr, world);
+            XMStoreFloat4x4(&cb->mN, XMMatrixTranspose(normal));
             XMStoreFloat4x4(&cb->mW, XMMatrixTranspose(world));
             cb->mLightDir     = XMFLOAT4(g_mLightDir.x, g_mLightDir.y, g_mLightDir.z, 0.f);
             cb->mLightColor   = XMFLOAT4(1.0f, 0.95f, 0.8f, 1.f);
@@ -1027,7 +1053,7 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
             cb->mCameraPos    = XMFLOAT4(g_mEye.x, g_mEye.y, g_mEye.z, 1.f);
             cb->mSpecular     = XMFLOAT4(32.f, 0.3f, 0.f, 0.f);
             XMStoreFloat4x4(&cb->mLightVP, XMMatrixTranspose(LoadM(m_mLightVP)));
-            cb->mShadow       = XMFLOAT4(0.002f, -1.0f, 1.0f / SHADOW_MAP_SIZE, 0.f);
+            cb->mShadow       = XMFLOAT4(0.002f, 0.6f, 1.0f / SHADOW_MAP_SIZE, 0.f);
             ctx->Unmap(m_pCB, 0);
 
             // テクスチャ
