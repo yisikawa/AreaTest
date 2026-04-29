@@ -5,6 +5,7 @@ cbuffer ConstantBuffer : register(b0)
     float2 mUV;
     float2 padding;
     float4 mCOL;
+    matrix mN;
     matrix mW;
     float4 mLightDir;     // 太陽方向(ワールド空間・正規化済み)
     float4 mLightColor;   // 太陽光色 × 強度
@@ -38,12 +39,11 @@ PS_INPUT VS(VS_INPUT input)
     PS_INPUT output = (PS_INPUT)0;
     output.Pos      = mul(input.Pos, mWVP);
     output.Tex      = input.Tex + mUV;
-    output.Col      = mCOL;
-    output.Col.a   *= input.Col.a;
+    output.Col      = float4(mCOL.rgb, mCOL.a * input.Col.a);
 
     float4 worldPos    = mul(input.Pos, mW);
     output.WorldPos    = worldPos.xyz;
-    output.Normal      = normalize(mul(input.Normal, (float3x3)mW));
+    output.Normal      = normalize(mul(input.Normal, (float3x3)mN));
     output.ShadowCoord = mul(worldPos, mLightVP);
     return output;
 }
@@ -70,16 +70,24 @@ float4 PS(PS_INPUT input) : SV_Target
     float3 specular = spec * mLightColor.rgb;
 
     // PCF シャドウ (3×3 カーネル、GREATER_EQUAL比較: 1=受光, 0=影)
-    float3 proj  = input.ShadowCoord.xyz / input.ShadowCoord.w;
-    float2 suv   = float2(proj.x * 0.5 + 0.5, -proj.y * 0.5 + 0.5);
-    float  depth = proj.z - mShadow.x;
-    float  ts    = mShadow.z;
+    float shadow = 1.0;
+    if (input.ShadowCoord.w > 0.0)
+    {
+        float3 proj = input.ShadowCoord.xyz / input.ShadowCoord.w;
+        float2 suv = float2(proj.x * 0.5 + 0.5, -proj.y * 0.5 + 0.5);
 
-    float shadow = 0.0;
-    [unroll] for (int dx = -1; dx <= 1; dx++)
-    [unroll] for (int dy = -1; dy <= 1; dy++)
-        shadow += txShadow.SampleCmpLevelZero(samShadow, suv + float2(dx, dy) * ts, depth);
-    shadow /= 9.0;
+        if (proj.z >= 0.0 && proj.z <= 1.0 && all(suv >= 0.0) && all(suv <= 1.0))
+        {
+            float depth = proj.z - mShadow.x;
+            float ts = mShadow.z;
+
+            shadow = 0.0;
+            [unroll] for (int dx = -1; dx <= 1; dx++)
+            [unroll] for (int dy = -1; dy <= 1; dy++)
+                shadow += txShadow.SampleCmpLevelZero(samShadow, suv + float2(dx, dy) * ts, depth);
+            shadow /= 9.0;
+        }
+    }
 
     // mShadow.y=1: 影部分=環境光のみ / mShadow.y=0: 影なし
     float  visibility = lerp(1.0 - mShadow.y, 1.0, shadow);

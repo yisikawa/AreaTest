@@ -6,13 +6,16 @@
 
 FFXIがインストールされているPCで各エリアを表示するためのツールです。独自のエリアデータを読み込み、3D空間に表示します。Windows APIとDirectX 9をベースに構築されています。
 
+
 ## スクリーンショット (表示例)
 
 ![ウィンダス石の区](screenshots/ウィンダス石の区.png)
 ![北サンドリア](screenshots/北サンドリア.png)
 ![ル・ルデの庭](screenshots/ル・ルデの庭.png)
 ![ラテーヌ高原](screenshots/ラテーヌ高原.png)
+## DX11移行後レンダリング（Phong反射 + シャドウマップ）
 
+![南サンドリア](screenshots/南サンドリア.png)
 ## 操作パネル
 
 ![エリア選択パネル](screenshots/エリア選択パネル.png)
