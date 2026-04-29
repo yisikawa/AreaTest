@@ -224,7 +224,7 @@ static bool CreateRenderStates(void)
         D3D11_DEPTH_STENCIL_DESC dd = {};
         dd.DepthEnable    = TRUE;
         dd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-        dd.DepthFunc      = D3D11_COMPARISON_LESS;
+        dd.DepthFunc      = D3D11_COMPARISON_LESS_EQUAL;
         if (FAILED(dev->CreateDepthStencilState(&dd, &g_pDSSNormal))) return false;
     }
     // サンプラー: リニアフィルタ、ラップ
