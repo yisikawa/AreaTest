@@ -1132,9 +1132,9 @@ void CArea::WriteMQOHeader(FILE* fd, CList& textures, const char* dirPath, bool 
     while (pTexture != NULL) {
         char texName[256];
         if (isEffectModel)
-            strcpy(texName, pTexture->m_TexName.c_str());
+            strcpynosp(texName, (char *)pTexture->m_TexName.c_str());
         else
-            strcpy(texName, pTexture->GetTexName());
+            strcpynosp(texName, (char *)pTexture->GetTexName());
         Trim(texName);
         if (isEffectModel)
             fprintf(fd, "    \"%s\" col(1.000 1.000 1.000 1.000)", texName);
