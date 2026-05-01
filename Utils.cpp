@@ -30,6 +30,25 @@ char* strrstr(const char *string, const char *pattern) {
 	return (char*)(string + pos);
 }
 
+char* // 文字列へのポインタ
+strcpynosp
+(
+	char* string1, // コピー先文字列
+	char* string2 // コピー元文字列
+)
+{
+	char* p = string1;
+	// 文字列終端に達するまでコピーを繰り返す。
+	for (int i = 0; i < strlen(string2); i++)
+	{
+		if (string2[i] != ' ')
+		{
+			*p++ = string2[i];
+		}
+	}
+	if (*p != '\0') *p = '\0';
+	return (char*)string1;
+}//strcpynosp
 //======================================================================
 // 数値計算
 //======================================================================
