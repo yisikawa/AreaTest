@@ -291,6 +291,7 @@
 #define ID_40262                        40262
 #define ID_MNU_EFFT                     40263
 #define ID_MNU_EFF2                     40264
+#define ID_MNU_FBX                      40265
 
 // Next default values for new objects
 // 

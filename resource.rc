@@ -32,6 +32,7 @@ BEGIN
         MENUITEM "Save MQO",                    ID_MNU_META,MFT_STRING,MFS_ENABLED
         MENUITEM "Save MQO2",                   ID_MNU_EFFT,MFT_STRING | MFT_RIGHTORDER | MFT_RIGHTJUSTIFY,MFS_ENABLED
         MENUITEM "Save MQO3",                   ID_MNU_EFF2,MFT_STRING,MFS_ENABLED
+        MENUITEM "Save FBX",                    ID_MNU_FBX,MFT_STRING,MFS_ENABLED
         MENUITEM "Quit",                        ID_MNU_EXIT,MFT_STRING,MFS_ENABLED
     END
     POPUP "Area(&O)",                       65535,MFT_STRING,MFS_ENABLED

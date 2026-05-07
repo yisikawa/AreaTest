@@ -10,6 +10,10 @@
 
 #pragma comment(lib, "windowscodecs.lib")
 
+#include <fbxsdk.h>
+#pragma comment(lib, "libfbxsdk.lib")
+using namespace fbxsdk;
+
 using namespace std;
 
 BOOL GetFileNameFromDno(LPSTR filename, DWORD dwID);
@@ -115,6 +119,8 @@ static HRESULT SaveTextureToPNG(const char* path, CTexture* pTex)
     if (!pTex || pTex->m_cpuData.empty()) return E_FAIL;
     UINT w = pTex->m_texWidth, h = pTex->m_texHeight;
     if (!w || !h) return E_FAIL;
+
+    DeleteFileA(path);
 
     wchar_t wpath[512];
     MultiByteToWideChar(CP_ACP, 0, path, -1, wpath, 512);
@@ -1410,4 +1416,218 @@ bool CArea::saveMQO3(char* FPath, char* FName)
     fprintf(fd, "EOF");
     fclose(fd);
     return true;
+}
+
+//======================================================================
+// FBX ヘルパー: 1つのCAreaMeshをFbxMeshに出力
+//======================================================================
+void CArea::OutputFBXAreaMesh(FbxMesh* pFbxMesh, FbxLayerElementMaterial* pMatElem,
+                               CAreaMesh* pAreaMesh, const XMFLOAT4X4& AreaMatrix,
+                               const vector<int>& texNoRemap)
+{
+    const D3DTEXVERTEX* pV     = reinterpret_cast<const D3DTEXVERTEX*>(pAreaMesh->m_cpuVB.data());
+    const WORD*         pIndex = reinterpret_cast<const WORD*>(pAreaMesh->m_cpuIB.data());
+    XMMATRIX            am     = LoadM(AreaMatrix);
+    bool                isMirror = IsMirrorMatrix(&AreaMatrix);
+
+    FbxGeometryElementNormal* normalElem = pFbxMesh->CreateElementNormal();
+    normalElem->SetMappingMode(FbxGeometryElement::eByControlPoint);
+    normalElem->SetReferenceMode(FbxGeometryElement::eDirect);
+    FbxGeometryElementUV* uvElem = pFbxMesh->CreateElementUV("default");
+    uvElem->SetMappingMode(FbxGeometryElement::eByControlPoint);
+    uvElem->SetReferenceMode(FbxGeometryElement::eDirect);
+
+    unsigned long numVerts = pAreaMesh->m_NumVertices;
+    pFbxMesh->InitControlPoints((int)numVerts);
+    for (unsigned long i = 0; i < numVerts; i++) {
+        XMFLOAT3 pos, norm;
+        StoreV(pos,  XMVector3TransformCoord( LoadV((pV+i)->v), am));
+        StoreV(norm, XMVector3Normalize(XMVector3TransformNormal(LoadV((pV+i)->n), am)));
+        pFbxMesh->SetControlPointAt(FbxVector4(pos.x*10., pos.y*10., pos.z*10.), (int)i);
+        normalElem->GetDirectArray().Add(FbxVector4(norm.x, norm.y, norm.z));
+        uvElem->GetDirectArray().Add(FbxVector2((pV+i)->tu, 1.0 - (pV+i)->tv));
+    }
+
+    auto addTri = [&](int t1, int t2, int t3, int texNo) {
+        if (t1 == t2 || t2 == t3 || t1 == t3) return;
+        int localMat = (texNo < (int)texNoRemap.size()) ? texNoRemap[texNo] : 0;
+        pFbxMesh->BeginPolygon();
+        pFbxMesh->AddPolygon(t1);
+        pFbxMesh->AddPolygon(t3);
+        pFbxMesh->AddPolygon(t2);
+        pFbxMesh->EndPolygon();
+        pMatElem->GetIndexArray().Add(localMat);
+    };
+
+    for (auto& stream : pAreaMesh->m_LStreams) {
+        const WORD* pI  = pIndex + stream.GetIndexStart();
+        int         tex = stream.m_TexNo;
+
+        if (stream.GetPrimitiveType() == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP) {
+            for (int nVer = 0; nVer < (int)stream.GetFaceCount()+2; ) {
+                int i1 = *pI++; nVer++;
+                int i2 = *pI++; nVer++;
+                while (nVer < (int)stream.GetFaceCount()+2) {
+                    int i3 = *pI++; nVer++;
+                    if (i2 == i3) { pI++; nVer++; break; }
+                    int t1, t2, t3;
+                    if (nVer % 2) { t1 = i3; t2 = i2; t3 = i1; }
+                    else          { t1 = i1; t2 = i2; t3 = i3; }
+                    if (isMirror) addTri(t1, t2, t3, tex);
+                    else          addTri(t1, t3, t2, tex);
+                    i1 = i2; i2 = i3;
+                }
+            }
+        } else if (stream.GetPrimitiveType() == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) {
+            for (unsigned int i = 0; i < stream.GetFaceCount(); i++) {
+                int i1 = *pI++, i2 = *pI++, i3 = *pI++;
+                if (isMirror) addTri(i3, i2, i1, tex);
+                else          addTri(i3, i1, i2, tex);
+            }
+        }
+    }
+}
+
+//======================================================================
+// FBXセーブ — 通常エリアデータ
+//======================================================================
+bool CArea::saveFBX(char* FPath, char* FName, float posX, float posY, float posZ)
+{
+    char* ptr;
+    char  fpath[256], texpath[256];
+
+    if ((ptr = strstr(FPath, ".fbx"))) *ptr = '\0';
+    if ((ptr = strstr(FName, ".fbx"))) *ptr = '\0';
+
+    FbxManager*    pMgr   = FbxManager::Create();
+    if (!pMgr) return false;
+    FbxIOSettings* ios    = FbxIOSettings::Create(pMgr, IOSROOT);
+    pMgr->SetIOSettings(ios);
+    FbxScene*      pScene = FbxScene::Create(pMgr, "AreaScene");
+    if (!pScene) { pMgr->Destroy(); return false; }
+
+    FbxGlobalSettings& gs = pScene->GetGlobalSettings();
+    gs.SetSystemUnit(FbxSystemUnit(100.));
+    gs.SetTimeMode(FbxTime::eFrames30);
+
+    strcpy(fpath, FPath);
+    if ((ptr = strrstr(fpath, FName))) *ptr = '\0';
+
+    // テクスチャPNG保存 & マテリアルをシーンに登録（インデックス順）
+    vector<FbxFileTexture*> fbxTextures;
+    CTexture* pTex = (CTexture*)m_Textures.Top();
+    while (pTex) {
+        char texName[256];
+        strcpynosp(texName, (char*)pTex->GetTexName());
+        Trim(texName);
+        sprintf(texpath, "%s%s.png", fpath, texName);
+        SaveTextureToPNG(texpath, pTex);
+
+        FbxSurfacePhong* mat = FbxSurfacePhong::Create(pScene, ("Mat_"+string(texName)).c_str());
+        mat->Ambient.Set(FbxDouble3(0.,0.,0.));
+        mat->Diffuse.Set(FbxDouble3(1.,1.,1.));
+        mat->Specular.Set(FbxDouble3(0.,0.,0.));
+        mat->ShadingModel.Set("Phong");
+        FbxFileTexture* fbxTex = FbxFileTexture::Create(pScene, ("Tex_"+string(texName)).c_str());
+        fbxTex->SetFileName((string(texName)+".png").c_str());
+        fbxTex->SetRelativeFileName((string(texName)+".png").c_str());
+        fbxTex->SetTextureUse(FbxTexture::eStandard);
+        fbxTex->SetMappingType(FbxTexture::eUV);
+        fbxTex->SetMaterialUse(FbxFileTexture::eModelMaterial);
+        fbxTex->UVSet.Set("default");
+        mat->Diffuse.ConnectSrcObject(fbxTex);
+        pScene->AddMaterial(mat);
+        fbxTextures.push_back(fbxTex);
+
+        pTex = (CTexture*)pTex->Next;
+    }
+
+    XMFLOAT4X4 rootMat4;
+    StoreM(rootMat4, XMMatrixRotationZ(PAI));
+
+    FbxNode* rootNode = pScene->GetRootNode();
+    float DispArea;
+
+    for (int num = 0; num < m_nObj; num++) {
+        CAreaMesh* pAreaMesh = m_pObjInfo[num].pAreaMesh;
+        if (!pAreaMesh || pAreaMesh->m_cpuVB.empty()) continue;
+
+        DispArea = ((m_pObjInfo[num].mObj.fe & 0xfff0ffff) == 0) ? g_mDispArea : g_mDispTree;
+
+        XMFLOAT4X4 AreaMatrix = m_pObjInfo[num].mMat;
+        StoreM(AreaMatrix, XMMatrixMultiply(LoadM(AreaMatrix), LoadM(rootMat4)));
+
+        XMFLOAT3 BL  = pAreaMesh->GetBoxLow(),  BH  = pAreaMesh->GetBoxHigh();
+        XMFLOAT3 BL2 = {BL.x,BL.y,BH.z},        BH2 = {BH.x,BH.y,BL.z};
+        XMMATRIX am  = LoadM(AreaMatrix);
+        StoreV(BL,  XMVector3TransformCoord(LoadV(BL),  am));
+        StoreV(BH,  XMVector3TransformCoord(LoadV(BH),  am));
+        StoreV(BL2, XMVector3TransformCoord(LoadV(BL2), am));
+        StoreV(BH2, XMVector3TransformCoord(LoadV(BH2), am));
+        if (Min4(BL.x,BH.x,BL2.x,BH2.x) > posX+DispArea) continue;
+        if (Max4(BL.x,BH.x,BL2.x,BH2.x) < posX-DispArea) continue;
+        if (Min4(BL.z,BH.z,BL2.z,BH2.z) > posZ+DispArea) continue;
+        if (Max4(BL.z,BH.z,BL2.z,BH2.z) < posZ-DispArea) continue;
+
+        char nodeName[32];
+        sprintf(nodeName, "Area%04d", num);
+        FbxNode* meshNode = FbxNode::Create(pScene, nodeName);
+        FbxMesh* fbxMesh  = FbxMesh::Create(pScene, (string(nodeName)+"M").c_str());
+        meshNode->SetNodeAttribute(fbxMesh);
+        rootNode->AddChild(meshNode);
+
+        // このメッシュが使うテクスチャ番号だけ収集してローカルマテリアルリストを作成
+        vector<int> usedTexNos;
+        for (auto& s : pAreaMesh->m_LStreams) {
+            int tn = s.m_TexNo;
+            if (find(usedTexNos.begin(), usedTexNos.end(), tn) == usedTexNos.end())
+                usedTexNos.push_back(tn);
+        }
+        sort(usedTexNos.begin(), usedTexNos.end());
+
+        // グローバルtexNo → ノードローカルインデックス のマップ
+        int matCount = pScene->GetMaterialCount();
+        vector<int> texNoRemap(matCount, 0);
+        for (int li = 0; li < (int)usedTexNos.size(); li++) {
+            int gm = usedTexNos[li];
+            if (gm < matCount) {
+                meshNode->AddMaterial(pScene->GetMaterial(gm));
+                if (gm < (int)fbxTextures.size())
+                    meshNode->ConnectSrcObject(fbxTextures[gm]);
+                texNoRemap[gm] = li;
+            }
+        }
+
+        FbxLayer* pLayer = fbxMesh->GetLayer(0);
+        if (!pLayer) { fbxMesh->CreateLayer(); pLayer = fbxMesh->GetLayer(0); }
+        FbxLayerElementMaterial* matElem = FbxLayerElementMaterial::Create(fbxMesh, "Material");
+        matElem->SetMappingMode(FbxLayerElement::eByPolygon);
+        matElem->SetReferenceMode(FbxLayerElement::eIndexToDirect);
+        OutputFBXAreaMesh(fbxMesh, matElem, pAreaMesh, AreaMatrix, texNoRemap);
+
+        pLayer->SetMaterials(matElem);
+    }
+
+    int fileFormat = 0;
+    int fmtCount = pMgr->GetIOPluginRegistry()->GetWriterFormatCount();
+    if (MessageBox(NULL, "FBX asciiで出力しますか?\nasciiはblenderにインポートできません",
+                   "FBX ascii or binary", MB_YESNO|MB_ICONQUESTION) == IDYES) {
+        for (int i = 0; i < fmtCount; i++) {
+            if (pMgr->GetIOPluginRegistry()->WriterIsFBX(i)) {
+                FbxString desc = pMgr->GetIOPluginRegistry()->GetWriterFormatDescription(i);
+                if (desc.Find("ascii") >= 0) { fileFormat = i; break; }
+            }
+        }
+    }
+
+    string fbxPath = string(FPath) + ".fbx";
+    DeleteFileA(fbxPath.c_str());
+
+    FbxExporter* pExp = FbxExporter::Create(pMgr, "");
+    bool ok = pExp->Initialize(fbxPath.c_str(), fileFormat, pMgr->GetIOSettings());
+    if (ok) ok = pExp->Export(pScene);
+    pExp->Destroy();
+    pScene->Destroy();
+    pMgr->Destroy();
+    return ok;
 }

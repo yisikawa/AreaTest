@@ -5,6 +5,7 @@
 // INCLUDE
 //======================================================================
 #include <stdio.h>
+namespace fbxsdk { class FbxMesh; class FbxLayerElementMaterial; }
 #include <string>
 #include <list>
 #include <vector>
@@ -144,6 +145,7 @@ public:
 	virtual bool            saveMQO(char *FPath, char *FName, float posX, float posY, float posZ);
 	virtual bool            saveMQO2(char *FPath, char *FName, float posX, float posY, float posZ);
 	virtual bool            saveMQO3(char *FPath, char *FName);
+	virtual bool            saveFBX(char *FPath, char *FName, float posX, float posY, float posZ);
 
 	bool InitKeyFrame(void) {
 		CKeyFrame *pKeyFrame = (CKeyFrame*)m_KeyFrames.Top();
@@ -178,6 +180,9 @@ private:
 	static void WriteMQOHeader(FILE* fd, CList& textures, const char* dirPath, bool isEffectModel);
 	static void WriteMQOAreaMesh(FILE* fd, CAreaMesh* pAreaMesh, const XMFLOAT4X4& AreaMatrix, bool useMirrorLogic, bool isEffect);
 	static void WriteMQOEffectModel(FILE* fd, CEffectModel* pEffMdl, const XMFLOAT4X4& EffectMatrix);
+	static void OutputFBXAreaMesh(fbxsdk::FbxMesh* pFbxMesh, fbxsdk::FbxLayerElementMaterial* pMatElem,
+	                               CAreaMesh* pAreaMesh, const XMFLOAT4X4& AreaMatrix,
+	                               const std::vector<int>& texNoRemap);
 }
 CArea, *LPCArea;
 
