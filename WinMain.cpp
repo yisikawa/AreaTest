@@ -625,6 +625,21 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                 }
             }
         }
+        if (LOWORD(wParam) == ID_MNU_FBX) {
+            sfn.lpstrTitle   = "FBX Save";
+            sfn.lpstrFilter  = "FBX Format(*.fbx)\0*.fbx\0";
+            sfn.lpstrDefExt  = "fbx";
+            lstrcpy(szFPath, "*.fbx");
+            if (GetSaveFileName(&sfn)) {
+                if (!g_mArea.saveFBX(szFPath, szFName, g_mAt.x, g_mAt.y, g_mAt.z)) {
+                    wsprintf(strmsg, "File %s could not be processed correctly", szFPath);
+                    MessageBox(NULL, strmsg, "FBX Save", MB_OK|MB_ICONINFORMATION);
+                }
+            }
+            sfn.lpstrFilter = "MQO Format(*.mqo)\0*.mqo\0";
+            sfn.lpstrDefExt = NULL;
+            lstrcpy(szFPath, "*.mqo");
+        }
         if (LOWORD(wParam) == ID_MNU_EXIT) {
             if (MessageBox(NULL, "Do you really want to quit?", "Quit Program",
                            MB_YESNO|MB_ICONQUESTION) == IDYES)
