@@ -1093,19 +1093,19 @@ bool CArea::LoadMAP()
     if ((GetArea() & 0xeffff) == 0) return true;
 
     GetFileNameFromDno(FileName,  GetArea());
-    GetFileNameFromDno(FileName2, ConvertStr2Dno("0-0"));
+    //GetFileNameFromDno(FileName2, ConvertStr2Dno("0-0"));
 
     HRESULT hr;
-    hr = LoadTextureFromFile(FileName2); if (hr) return false;
+    //hr = LoadTextureFromFile(FileName2); if (hr) return false;
     hr = LoadTextureFromFile(FileName);  if (hr) return false;
     hr = LoadAreaFromFile(FileName, FVF); if (hr) return false;
     InitEffectModel();
-    LoadEffectModelFromFile(FileName);
-    LoadEffectModelFromFile(FileName2);
-    LoadEffectModel2FromFile(FileName);
-    LoadEffectModel2FromFile(FileName2);
+    //LoadEffectModelFromFile(FileName);
+    //LoadEffectModelFromFile(FileName2);
+    //LoadEffectModel2FromFile(FileName);
+    //LoadEffectModel2FromFile(FileName2);
     InitEffect();
-    LoadEffectFromFile(FileName);
+    //LoadEffectFromFile(FileName);
     return true;
 }
 
