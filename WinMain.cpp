@@ -236,7 +236,7 @@ int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
     long window_h = g_mScreenHeight + GetSystemMetrics(SM_CYEDGE) + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
 
     hWindow = CreateWindowEx(WS_EX_APPWINDOW, ClassName, AppName,
-        WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
+        WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME | WS_VISIBLE,
         GetSystemMetrics(SM_CXSCREEN)/2 - window_w/2,
         GetSystemMetrics(SM_CYSCREEN)/2 - window_h/2,
         window_w, window_h, NULL, NULL, inst, NULL);
@@ -494,6 +494,9 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
     static float Delta = 0.f, Step = 0.2f;
     static bool  lDrag = false, rDrag = false;
     static short x1 = -1, y1 = -1, x2, y2;
+    static bool  s_isFullscreen = false;
+    static RECT  s_savedRect    = {};
+    static DWORD s_savedStyle   = 0;
 
     OPENFILENAME sfn;
     char szFPath[256], szFName[256], strmsg[256];
@@ -511,6 +514,83 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
     sfn.lpstrInitialDir = NULL;
 
     switch (msg) {
+    case WM_SYSCOMMAND:
+        if ((wParam & 0xFFF0) == SC_MAXIMIZE) {
+            // 最大化ボタン → F11 と同じボーダーレス全画面トグル
+            SendMessage(hWnd, WM_KEYDOWN, VK_F11, 0);
+            return 0;
+        }
+        return DefWindowProc(hWnd, msg, wParam, lParam);
+
+    case WM_GETMINMAXINFO: {
+        int bw = GetSystemMetrics(SM_CXSIZEFRAME) * 2;
+        int bh = GetSystemMetrics(SM_CYSIZEFRAME) * 2 + GetSystemMetrics(SM_CYCAPTION);
+        MINMAXINFO* mm = (MINMAXINFO*)lParam;
+        mm->ptMinTrackSize.x = 320 + bw;
+        mm->ptMinTrackSize.y = 180 + bh;
+        return 0;
+    }
+
+    case WM_SIZING: {
+        const double aspect = 16.0 / 9.0;
+        RECT* rc = (RECT*)lParam;
+        int bw = GetSystemMetrics(SM_CXSIZEFRAME) * 2;
+        int bh = GetSystemMetrics(SM_CYSIZEFRAME) * 2 + GetSystemMetrics(SM_CYCAPTION);
+        int cw = (rc->right - rc->left) - bw;
+        int ch = (rc->bottom - rc->top) - bh;
+
+        // 左右ドラッグ（またはコーナー）は幅優先、上下ドラッグは高さ優先
+        bool widthDriven = (wParam != WMSZ_TOP && wParam != WMSZ_BOTTOM);
+        if (widthDriven)
+            ch = (int)(cw / aspect);
+        else
+            cw = (int)(ch * aspect);
+
+        if (cw < 320) { cw = 320; ch = 180; }
+
+        int nw = cw + bw;
+        int nh = ch + bh;
+
+        switch (wParam) {
+        case WMSZ_RIGHT:
+        case WMSZ_BOTTOMRIGHT:
+        case WMSZ_BOTTOM:
+            rc->right  = rc->left + nw;
+            rc->bottom = rc->top  + nh;
+            break;
+        case WMSZ_LEFT:
+        case WMSZ_BOTTOMLEFT:
+            rc->left   = rc->right - nw;
+            rc->bottom = rc->top   + nh;
+            break;
+        case WMSZ_TOP:
+        case WMSZ_TOPRIGHT:
+            rc->right  = rc->left + nw;
+            rc->top    = rc->bottom - nh;
+            break;
+        case WMSZ_TOPLEFT:
+            rc->left   = rc->right  - nw;
+            rc->top    = rc->bottom - nh;
+            break;
+        }
+        return TRUE;
+    }
+
+    case WM_SIZE: {
+        if (wParam != SIZE_MINIMIZED) {
+            RECT rc;
+            GetClientRect(hWnd, &rc);
+            int nw = rc.right  - rc.left;
+            int nh = rc.bottom - rc.top;
+            if (nw > 0 && nh > 0 && (nw != g_mScreenWidth || nh != g_mScreenHeight)) {
+                g_mScreenWidth  = nw;
+                g_mScreenHeight = nh;
+                ResizeD3D11(nw, nh);
+            }
+        }
+        break;
+    }
+
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -562,42 +642,6 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
 
     case WM_COMMAND:
         if (LOWORD(wParam) == ID_MNU_OASPD) ShowWindow(hDlg1, SW_SHOW);
-        if (LOWORD(wParam) == ID_MNU_W320) {
-            long ww2 = 320+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 180+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
-            MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=320; g_mScreenHeight=180;
-        }
-        if (LOWORD(wParam) == ID_MNU_W640) {
-            long ww2 = 640+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 360+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
-            MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=640; g_mScreenHeight=360;
-        }
-        if (LOWORD(wParam) == ID_MNU_W800) {
-            long ww2 = 800+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 450+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
-            MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=800; g_mScreenHeight=450;
-        }
-        if (LOWORD(wParam) == ID_MNU_W1280) {
-            long ww2 = 1280+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 =  720+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
-            MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-			g_mScreenWidth = 1280; g_mScreenHeight = 720;
-        }
-        if (LOWORD(wParam) == ID_MNU_W1920) {
-            long ww2 = 1920+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 1080+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
-            MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=1920; g_mScreenHeight=1080;
-        }
-        if (LOWORD(wParam) == ID_MNU_W2560) {
-            long ww2 = 2560+GetSystemMetrics(SM_CXEDGE)+GetSystemMetrics(SM_CXBORDER)+GetSystemMetrics(SM_CXDLGFRAME);
-            long hh2 = 1440+GetSystemMetrics(SM_CYEDGE)+GetSystemMetrics(SM_CYBORDER)+GetSystemMetrics(SM_CYDLGFRAME)+GetSystemMetrics(SM_CYCAPTION);
-            MoveWindow(hWnd, GetSystemMetrics(SM_CXSCREEN)/2-ww2/2, GetSystemMetrics(SM_CYSCREEN)/2-hh2/2, ww2,hh2,true);
-            g_mScreenWidth=2560; g_mScreenHeight=1440;
-        }
         if (LOWORD(wParam) == ID_MNU_META) {
             sfn.lpstrTitle = "MQO Save";
             if (GetSaveFileName(&sfn)) {
@@ -677,6 +721,24 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             g_mAt.x += XMVectorGetX(Pos)*3.f;
             g_mAt.z += XMVectorGetZ(Pos)*3.f;
             UpdateEyeAndView();
+        } else if (wParam == VK_F11) {
+            if (!s_isFullscreen) {
+                s_savedStyle = GetWindowLong(hWnd, GWL_STYLE);
+                GetWindowRect(hWnd, &s_savedRect);
+                SetWindowLong(hWnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+                int sw = GetSystemMetrics(SM_CXSCREEN);
+                int sh = GetSystemMetrics(SM_CYSCREEN);
+                SetWindowPos(hWnd, HWND_TOP, 0, 0, sw, sh, SWP_FRAMECHANGED);
+                s_isFullscreen = true;
+            } else {
+                SetWindowLong(hWnd, GWL_STYLE, s_savedStyle);
+                SetWindowPos(hWnd, nullptr,
+                    s_savedRect.left, s_savedRect.top,
+                    s_savedRect.right  - s_savedRect.left,
+                    s_savedRect.bottom - s_savedRect.top,
+                    SWP_FRAMECHANGED | SWP_NOZORDER);
+                s_isFullscreen = false;
+            }
         }
         break;
 
