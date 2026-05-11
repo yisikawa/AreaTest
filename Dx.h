@@ -20,6 +20,7 @@ using namespace DirectX;
 //======================================================================
 bool InitD3D11(HWND hWnd, int width, int height);
 void ReleaseD3D11(void);
+void ResizeD3D11(int width, int height);
 
 ID3D11Device*             GetDevice11(void);
 ID3D11DeviceContext*      GetContext(void);
