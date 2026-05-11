@@ -615,6 +615,15 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
             }
         } else if (wParam & MK_MBUTTON) {
             if (abs(x2-x1) < 20 && abs(y2-y1) < 20) {
+                XMVECTOR Pos = XMVector3Normalize(LoadV(g_mAt) - LoadV(g_mEye));
+                Pos = XMVector3TransformCoord(Pos, XMMatrixRotationY(-PAI/2.f));
+                g_mAt.x += XMVectorGetX(Pos) * ((x2-x1)/10.f);
+                g_mAt.z += XMVectorGetZ(Pos) * ((x2-x1)/10.f);
+                g_mAt.y += (y2-y1) / 10.f;
+                UpdateEyeAndView();
+            }
+        } else if (wParam & MK_RBUTTON) {
+            if (abs(x2-x1) < 20 && abs(y2-y1) < 20) {
                 g_mLightAlph += (float)(x2-x1)/(float)g_mScreenWidth*2.f*PAI;
                 g_mLightBeta += (float)(y1-y2)/(float)g_mScreenWidth*2.f*PAI;
                 g_mLightAlph = (g_mLightAlph > PAI2)  ? (g_mLightAlph-PAI2)  : g_mLightAlph;
@@ -626,15 +635,6 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
                     XMMatrixRotationY(g_mLightAlph));
                 StoreV(g_mLightDir,
                     XMVector3Normalize(XMVector3TransformNormal(LoadV(g_mLightDirBase), mat)));
-            }
-        } else if (wParam & MK_RBUTTON) {
-            if (abs(x2-x1) < 20 && abs(y2-y1) < 20) {
-                XMVECTOR Pos = XMVector3Normalize(LoadV(g_mAt) - LoadV(g_mEye));
-                Pos = XMVector3TransformCoord(Pos, XMMatrixRotationY(-PAI/2.f));
-                g_mAt.x += XMVectorGetX(Pos) * ((x2-x1)/10.f);
-                g_mAt.z += XMVectorGetZ(Pos) * ((x2-x1)/10.f);
-                g_mAt.y += (y2-y1) / 10.f;
-                UpdateEyeAndView();
             }
         }
         x1 = x2; y1 = y2;
