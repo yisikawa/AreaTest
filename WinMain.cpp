@@ -22,6 +22,7 @@
 //======================================================================
 LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam );
 LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARAM in_lParam);
+LRESULT CALLBACK CanvasProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 DWORD   ConvertStr2Dno( char* DataName );
 DWORD   ConvertStr2Dno2( char* DataName );
 BOOL    GetFileNameFromDno(LPSTR filename, DWORD dwID);
@@ -55,6 +56,9 @@ static DWORD FPS;
 
 HWND hWindow;
 HWND hDlg1;
+HWND hCanvas = NULL;
+static std::vector<std::string> g_canvasLines;
+static int g_scrollPos = 0;
 
 unsigned long Polygons;
 float      g_mDispArea = 1500.f;
@@ -232,6 +236,15 @@ int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
     wc.lpszClassName = ClassName;
     if (RegisterClass(&wc) == NULL) { CoUninitialize(); return false; }
 
+    // カスタム描画キャンバス用ウィンドウクラス登録
+    WNDCLASS wc2 = {};
+    wc2.style         = CS_HREDRAW | CS_VREDRAW;
+    wc2.lpfnWndProc   = CanvasProc;
+    wc2.hInstance     = inst;
+    wc2.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc2.lpszClassName = "AreaTestCanvas";
+    RegisterClass(&wc2);
+
     long window_w = g_mScreenWidth  + GetSystemMetrics(SM_CXEDGE) + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
     long window_h = g_mScreenHeight + GetSystemMetrics(SM_CYEDGE) + GetSystemMetrics(SM_CYBORDER) + GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
 
@@ -285,16 +298,161 @@ int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
 }
 
 //======================================================================
+// カスタム描画キャンバス ヘルパー
+//======================================================================
+static std::string SanitizeAreaName(const char* name)
+{
+    std::string result;
+    for (int i = 0; i < 16 && name[i] != '\0'; i++) {
+        unsigned char c = (unsigned char)name[i];
+        result += (c >= 0x20 && c < 0x7F) ? (char)c : ' ';
+    }
+    return result.empty() ? "(empty)" : result;
+}
+
+static const int CANVAS_LINE_H = 18;
+
+static void UpdateScrollBar(HWND hWnd)
+{
+    RECT rc;
+    GetClientRect(hWnd, &rc);
+    int totalH = (int)g_canvasLines.size() * CANVAS_LINE_H;
+    int pageH  = rc.bottom - rc.top;
+    SCROLLINFO si = {};
+    si.cbSize = sizeof(si);
+    si.fMask  = SIF_RANGE | SIF_PAGE | SIF_POS;
+    si.nMin   = 0;
+    si.nMax   = max(0, totalH - 1);
+    si.nPage  = (UINT)pageH;
+    si.nPos   = g_scrollPos;
+    SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+    g_scrollPos = GetScrollPos(hWnd, SB_VERT);
+}
+
+static void RefreshCanvas()
+{
+    if (!hCanvas) return;
+    g_scrollPos = 0;
+    UpdateScrollBar(hCanvas);
+    InvalidateRect(hCanvas, NULL, TRUE);
+}
+
+static void SetCanvasMesh(CAreaMesh* pMesh)
+{
+    g_canvasLines.clear();
+    if (!pMesh) { RefreshCanvas(); return; }
+    char buf[160];
+    g_canvasLines.push_back("[ Mesh Info ]");
+    g_canvasLines.push_back("AreaName  : " + SanitizeAreaName(pMesh->GetAreaName()));
+    g_canvasLines.push_back("AreaType  : " + std::string(pMesh->GetAreaType()).substr(0, 4));
+    sprintf(buf, "Vertices  : %lu", pMesh->GetNumVertices()); g_canvasLines.push_back(buf);
+    sprintf(buf, "Faces     : %lu", pMesh->GetNumFaces());    g_canvasLines.push_back(buf);
+    XMFLOAT3 lo = pMesh->GetBoxLow(), hi = pMesh->GetBoxHigh();
+    sprintf(buf, "BoxLow    : X=%8.2f  Y=%8.2f  Z=%8.2f", lo.x, lo.y, lo.z); g_canvasLines.push_back(buf);
+    sprintf(buf, "BoxHigh   : X=%8.2f  Y=%8.2f  Z=%8.2f", hi.x, hi.y, hi.z); g_canvasLines.push_back(buf);
+    g_canvasLines.push_back("--- Instances ---");
+    int cnt = 0;
+    for (int i = 0; i < g_mArea.GetNObj(); i++) {
+        OBJINFO* p = g_mArea.GetObjInfo(i);
+        if (p && p->pAreaMesh == pMesh) {
+            sprintf(buf, "OBJ[%03d]  pos(%8.2f,%8.2f,%8.2f)", i,
+                    p->mObj.fTransX, p->mObj.fTransY, p->mObj.fTransZ);
+            g_canvasLines.push_back(buf);
+            cnt++;
+        }
+    }
+    if (cnt == 0) g_canvasLines.push_back("  (no instances)");
+    RefreshCanvas();
+}
+
+static void SetCanvasEffectModel(CEffectModel* pEfm)
+{
+    g_canvasLines.clear();
+    if (!pEfm) { RefreshCanvas(); return; }
+    char buf[160];
+    g_canvasLines.push_back("[ EffectModel Info ]");
+    g_canvasLines.push_back("Name      : " + pEfm->m_Name);
+    g_canvasLines.push_back("Type      : " + pEfm->m_type.substr(0, 4));
+    sprintf(buf, "ModelType : %d",   pEfm->m_ModelType);  g_canvasLines.push_back(buf);
+    sprintf(buf, "ModelNo   : %lu",  pEfm->m_ModelNo);    g_canvasLines.push_back(buf);
+    sprintf(buf, "ModelTotal: %lu",  pEfm->m_ModelTotal); g_canvasLines.push_back(buf);
+    sprintf(buf, "Vertices  : %lu",  pEfm->m_NumVertices);g_canvasLines.push_back(buf);
+    sprintf(buf, "Faces     : %lu",  pEfm->m_NumFaces);   g_canvasLines.push_back(buf);
+    RefreshCanvas();
+}
+
+//======================================================================
+// カスタム描画キャンバス ウィンドウプロシージャ
+//======================================================================
+LRESULT CALLBACK CanvasProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg) {
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps);
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        FillRect(hdc, &rc, (HBRUSH)(COLOR_WINDOW + 1));
+        SetTextColor(hdc, RGB(0, 0, 0));
+        SetBkMode(hdc, TRANSPARENT);
+        int y = 2 - g_scrollPos;
+        RECT lineRc = { 4, y, rc.right - 4, y + CANVAS_LINE_H };
+        for (const auto& line : g_canvasLines) {
+            if (lineRc.bottom > 0 && lineRc.top < rc.bottom)
+                DrawText(hdc, line.c_str(), -1, &lineRc, DT_LEFT | DT_SINGLELINE);
+            lineRc.top    += CANVAS_LINE_H;
+            lineRc.bottom += CANVAS_LINE_H;
+            if (lineRc.top >= rc.bottom) break;
+        }
+        EndPaint(hWnd, &ps);
+        return 0;
+    }
+    case WM_SIZE:
+        UpdateScrollBar(hWnd);
+        return 0;
+
+    case WM_VSCROLL: {
+        SCROLLINFO si = {};
+        si.cbSize = sizeof(si);
+        si.fMask  = SIF_ALL;
+        GetScrollInfo(hWnd, SB_VERT, &si);
+        switch (LOWORD(wParam)) {
+        case SB_LINEUP:     si.nPos -= CANVAS_LINE_H;  break;
+        case SB_LINEDOWN:   si.nPos += CANVAS_LINE_H;  break;
+        case SB_PAGEUP:     si.nPos -= (int)si.nPage;  break;
+        case SB_PAGEDOWN:   si.nPos += (int)si.nPage;  break;
+        case SB_THUMBTRACK: si.nPos  = si.nTrackPos;   break;
+        }
+        si.fMask = SIF_POS;
+        SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+        g_scrollPos = GetScrollPos(hWnd, SB_VERT);
+        InvalidateRect(hWnd, NULL, TRUE);
+        return 0;
+    }
+    case WM_MOUSEWHEEL: {
+        int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+        SCROLLINFO si = {};
+        si.cbSize = sizeof(si);
+        si.fMask  = SIF_ALL;
+        GetScrollInfo(hWnd, SB_VERT, &si);
+        si.nPos  -= (delta / WHEEL_DELTA) * CANVAS_LINE_H * 3;
+        si.fMask  = SIF_POS;
+        SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+        g_scrollPos = GetScrollPos(hWnd, SB_VERT);
+        InvalidateRect(hWnd, NULL, TRUE);
+        return 0;
+    }
+    }
+    return DefWindowProc(hWnd, msg, wParam, lParam);
+}
+
+//======================================================================
 // ダイアログプロシージャ
 //======================================================================
 LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARAM in_lParam)
 {
-    int    i, tType, ComboNo;
-    char   ComboString[256];
-    int    index, w1, w2, w3;
-    char   tName[6], tClass[6], ww[512];
-    CEffect*   pEffect;
-    CKeyFrame* pKeyframe;
+    int  i, ComboNo, w1, w2, w3;
+    char buf[128], ww[512];
 
     switch (in_Message) {
     case WM_INITDIALOG: {
@@ -309,8 +467,8 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
         for (i = 0; i < (int)g_ListArea.size(); i++) {
             int w5, w6, w7;
             sscanf(g_ListArea[i].c_str(), "%d-%d-%d,%d,%d,%d,%s", &w1,&w2,&w3,&w5,&w6,&w7,ww);
-            sprintf(ComboString, "%d-%d-%d,%s", w1,w2,w3,ww);
-            SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ComboString);
+            sprintf(buf, "%d-%d-%d,%s", w1,w2,w3,ww);
+            SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_INSERTSTRING, (WPARAM)i, (LPARAM)buf);
         }
         SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_SETCURSEL, (WPARAM)0, 0L);
         for (i = 0; i < 3; i++)
@@ -320,6 +478,17 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
             SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListRange[i]);
         SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_SETCURSEL, (WPARAM)2, 0L);
         SetFocus(GetDlgItem(in_hWnd, IDC_COMBO1));
+        // カスタム描画キャンバスを生成 (LIST1+LIST2 の合計領域)
+        {
+            RECT rc = { 7, 59, 7 + 278, 59 + 233 };
+            MapDialogRect(in_hWnd, &rc);
+            hCanvas = CreateWindowEx(
+                WS_EX_CLIENTEDGE, "AreaTestCanvas", NULL,
+                WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_VSCROLL,
+                rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
+                in_hWnd, NULL,
+                (HINSTANCE)GetWindowLongPtr(in_hWnd, GWLP_HINSTANCE), NULL);
+        }
         break;
     }
     case WM_HSCROLL:
@@ -329,86 +498,42 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
         case IDOK:
             ShowWindow(in_hWnd, SW_HIDE);
             break;
-        case IDC_LIST1:
-            if (HIWORD(in_wParam) == LBN_SELCHANGE) {
-                while (SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_GETCOUNT, 0, 0) != 0)
-                    SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_DELETESTRING, 0, 0);
-                index = (int)SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETCURSEL, 0, 0L);
-                SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETTEXT, (WORD)index, (LONG_PTR)ww);
-                sscanf(ww, "[%02x] ｷｰﾌﾚｰﾑ (%4s)", &tType, tName);
-                switch (tType) {
-                case 0x21: case 0x22: case 0x23: case 0x24: case 0x25:
-                case 0x26: case 0x27: case 0x28: case 0x29: case 0x2d:
-                case 0x2e: case 0x2f: case 0x60: case 0x61: case 0x62:
-                    pKeyframe = (CKeyFrame*)g_mArea.m_KeyFrames.Top();
-                    while (pKeyframe) {
-                        if (!memcmp(tName, pKeyframe->m_type.c_str(), strlen(tName))) {
-                            pKeyframe->outputValue(GetDlgItem(in_hWnd, IDC_LIST2));
-                            break;
-                        }
-                        pKeyframe = (CKeyFrame*)pKeyframe->Next;
-                    }
-                    SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_SETCURSEL, (WPARAM)0, 0L);
-                    break;
-                }
-            }
-            break;
         case IDC_COMBO1:
             if (HIWORD(in_wParam) == CBN_SELCHANGE) {
                 ComboNo = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO1), CB_GETCURSEL, 0L, 0L);
                 sscanf(g_ListArea[ComboNo].c_str(), "%d-%d-%d,%f,%f,%f,%s",
-                       &w1,&w2,&w3,
-                       &g_mEntry.x, &g_mEntry.y, &g_mEntry.z, ww);
+                       &w1,&w2,&w3, &g_mEntry.x, &g_mEntry.y, &g_mEntry.z, ww);
                 g_mArea.SetArea(ConvertStr2Dno2((char*)g_ListArea[ComboNo].c_str()));
                 if (!g_mArea.LoadMAP()) return -1;
                 g_mAt.x = g_mEntry.x; g_mAt.y = g_mEntry.y; g_mAt.z = g_mEntry.z;
                 g_mEye = g_mAt; g_mEye.z += -5; g_mEye.y += 1.0f;
                 StoreM(g_mView, XMMatrixLookAtLH(LoadV(g_mEye), LoadV(g_mAt), LoadV(g_mUp)));
 
-                while (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETCOUNT, 0, 0) != 0)
-                    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_DELETESTRING, 0, 0);
-                pEffect = (CEffect*)g_mArea.m_Effects.Top();
-                while (pEffect) {
-                    if (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_FINDSTRINGEXACT,
-                                    0, (LPARAM)pEffect->m_class.c_str()) < 0)
-                        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_ADDSTRING,
-                                    0, (LPARAM)pEffect->m_class.c_str());
-                    pEffect = (CEffect*)pEffect->Next;
-                }
-                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_SETCURSEL, (WPARAM)0, 0L);
-
-                while (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCOUNT, 0, 0) != 0)
-                    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_DELETESTRING, 0, 0);
-                index = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETCURSEL, 0, 0L);
-                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETLBTEXT, (WORD)index, (LONG_PTR)g_className);
-                pEffect = (CEffect*)g_mArea.m_Effects.Top();
-                while (pEffect) {
-                    if (!memcmp(pEffect->m_class.c_str(), g_className, 4)) {
-                        sprintf(ComboString, "ID[%s] class[%s]",
-                                pEffect->m_name.c_str(), pEffect->m_class.c_str());
-                        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_ADDSTRING, 0, (LPARAM)ComboString);
+                // COMBO3: AreaMesh 名一覧（ファイル出現順）
+                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_RESETCONTENT, 0, 0);
+                {
+                    CAreaMesh* pMesh = (CAreaMesh*)g_mArea.GetAreaMeshs().Top();
+                    for (int idx = 0; pMesh; idx++, pMesh = (CAreaMesh*)pMesh->Next) {
+                        sprintf(buf, "[%03d] %s", idx, SanitizeAreaName(pMesh->GetAreaName()).c_str());
+                        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_ADDSTRING, 0, (LPARAM)buf);
                     }
-                    pEffect = (CEffect*)pEffect->Next;
+                    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_SETCURSEL, 0, 0);
                 }
-                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)0, 0L);
 
-                while (SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETCOUNT, 0, 0) != 0)
-                    SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_DELETESTRING, 0, 0);
-                index = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, 0, 0L);
-                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETLBTEXT, (WORD)index, (LONG_PTR)ComboString);
-                sscanf(ComboString, "ID[%c%c%c%c] class[%c%c%c%c]",
-                       &tName[0],&tName[1],&tName[2],&tName[3],
-                       &tClass[0],&tClass[1],&tClass[2],&tClass[3]);
-                pEffect = (CEffect*)g_mArea.m_Effects.Top();
-                while (pEffect) {
-                    if (!memcmp(tName,  pEffect->m_name.c_str(),  pEffect->m_name.length()) &&
-                        !memcmp(tClass, pEffect->m_class.c_str(), pEffect->m_class.length())) {
-                        pEffect->outputProp(GetDlgItem(in_hWnd, IDC_LIST1));
-                        break;
+                // COMBO4: EffectModel 一覧
+                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_RESETCONTENT, 0, 0);
+                {
+                    CEffectModel* pEfm = (CEffectModel*)g_mArea.GetEffectModels().Top();
+                    for (int idx = 0; pEfm; idx++, pEfm = (CEffectModel*)pEfm->Next) {
+                        sprintf(buf, "[%03d] %s  type:%.4s  modelType:%d", idx,
+                                pEfm->m_Name.c_str(), pEfm->m_type.c_str(), pEfm->m_ModelType);
+                        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_ADDSTRING, 0, (LPARAM)buf);
                     }
-                    pEffect = (CEffect*)pEffect->Next;
+                    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, 0, 0);
                 }
-                SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), CB_SETCURSEL, (WPARAM)0, 0L);
+
+                // キャンバス：先頭メッシュ情報を表示
+                SetCanvasMesh((CAreaMesh*)g_mArea.GetAreaMeshs().Data(0));
             }
             break;
         case IDC_COMBO2:
@@ -420,43 +545,14 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
             break;
         case IDC_COMBO3:
             if (HIWORD(in_wParam) == CBN_SELCHANGE) {
-                while (SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCOUNT, 0, 0) != 0)
-                    SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_DELETESTRING, 0, 0);
-                index = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETCURSEL, 0, 0L);
-                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETLBTEXT, (WORD)index, (LONG_PTR)g_className);
-                pEffect = (CEffect*)g_mArea.m_Effects.Top();
-                while (pEffect) {
-                    if (!memcmp(pEffect->m_class.c_str(), g_className, 4)) {
-                        sprintf(ComboString, "ID[%s] class[%s]",
-                                pEffect->m_name.c_str(), pEffect->m_class.c_str());
-                        SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_ADDSTRING, 0, (LPARAM)ComboString);
-                    }
-                    pEffect = (CEffect*)pEffect->Next;
-                }
-                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, (WPARAM)0, 0L);
+                int sel = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_GETCURSEL, 0, 0);
+                SetCanvasMesh((CAreaMesh*)g_mArea.GetAreaMeshs().Data(sel));
             }
             break;
         case IDC_COMBO4:
             if (HIWORD(in_wParam) == CBN_SELCHANGE) {
-                while (SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_GETCOUNT, 0, 0) != 0)
-                    SendMessage(GetDlgItem(in_hWnd, IDC_LIST2), LB_DELETESTRING, 0, 0);
-                while (SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_GETCOUNT, 0, 0) != 0)
-                    SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), LB_DELETESTRING, 0, 0);
-                index = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, 0, 0L);
-                SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETLBTEXT, (WORD)index, (LONG_PTR)ComboString);
-                sscanf(ComboString, "ID[%c%c%c%c] class[%c%c%c%c]",
-                       &tName[0],&tName[1],&tName[2],&tName[3],
-                       &tClass[0],&tClass[1],&tClass[2],&tClass[3]);
-                pEffect = (CEffect*)g_mArea.m_Effects.Top();
-                while (pEffect) {
-                    if (!memcmp(tName,  pEffect->m_name.c_str(),  pEffect->m_name.length()) &&
-                        !memcmp(tClass, pEffect->m_class.c_str(), pEffect->m_class.length())) {
-                        pEffect->outputProp(GetDlgItem(in_hWnd, IDC_LIST1));
-                        break;
-                    }
-                    pEffect = (CEffect*)pEffect->Next;
-                }
-                SendMessage(GetDlgItem(in_hWnd, IDC_LIST1), CB_SETCURSEL, (WPARAM)0, 0L);
+                int sel = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, 0, 0);
+                SetCanvasEffectModel((CEffectModel*)g_mArea.GetEffectModels().Data(sel));
             }
             break;
         case IDC_COMBO5:
