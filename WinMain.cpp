@@ -339,6 +339,7 @@ static void RefreshCanvas()
 
 static void SetCanvasMesh(CAreaMesh* pMesh)
 {
+    SetHighlightMesh(pMesh);
     g_canvasLines.clear();
     if (!pMesh) { RefreshCanvas(); return; }
     char buf[160];
@@ -367,6 +368,7 @@ static void SetCanvasMesh(CAreaMesh* pMesh)
 
 static void SetCanvasEffectModel(CEffectModel* pEfm)
 {
+    SetHighlightMesh(nullptr);
     g_canvasLines.clear();
     if (!pEfm) { RefreshCanvas(); return; }
     char buf[160];
