@@ -73,9 +73,9 @@ public:
     virtual void SetMeshAttr(D3D11_PRIMITIVE_TOPOLOGY type,
                              unsigned long index_start,
                              unsigned long face_count);
-    virtual D3D11_PRIMITIVE_TOPOLOGY GetPrimitiveType(void);
-    virtual unsigned long GetIndexStart(void);
-    virtual unsigned long GetFaceCount(void);
+    virtual D3D11_PRIMITIVE_TOPOLOGY GetPrimitiveType(void) const;
+    virtual unsigned long GetIndexStart(void) const;
+    virtual unsigned long GetFaceCount(void) const;
 }
 CStream, LPCStream;
 
@@ -122,6 +122,7 @@ public:
     virtual void        SetAreaType(const char* s) { m_AreaType = s; }
     virtual const char* GetAreaType(void)          { return m_AreaType.c_str(); }
 
+    virtual const std::list<CStream>& GetLStreams(void) const { return m_LStreams; }
     virtual HRESULT LoadAreaMesh(char* pFile, CArea* pArea, unsigned long FVF);
     virtual int     countTextures(void);
 }

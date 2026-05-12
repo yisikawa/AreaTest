@@ -10,6 +10,8 @@
 
 #define IDC_STATIC -1
 
+class CAreaMesh;
+
 //======================================================================
 // 定数バッファ構造体 (hlsl.fx に対応: 320 バイト)
 //======================================================================
@@ -53,9 +55,17 @@ HRESULT CreateBuffer11(ID3D11Buffer** ppBuf, UINT byteSize, UINT bindFlags,
 // DX11 レンダーステートオブジェクト アクセサ (Phase5)
 ID3D11BlendState*        GetBlendNone(void);
 ID3D11BlendState*        GetBlendAlpha(void);
-ID3D11RasterizerState*   GetRastCCW(void);
-ID3D11RasterizerState*   GetRastCW(void);
-ID3D11RasterizerState*   GetRastNone(void);
-ID3D11DepthStencilState* GetDSSNormal(void);
-ID3D11SamplerState*      GetSampler(void);
-ID3D11SamplerState*      GetShadowSampler(void);
+ID3D11RasterizerState*    GetRastCCW(void);
+ID3D11RasterizerState*    GetRastCW(void);
+ID3D11RasterizerState*    GetRastNone(void);
+ID3D11RasterizerState*    GetRastWireframe(void);
+ID3D11DepthStencilState*  GetDSSNormal(void);
+ID3D11SamplerState*       GetSampler(void);
+ID3D11SamplerState*       GetShadowSampler(void);
+ID3D11ShaderResourceView* GetWhiteSRV(void);
+
+// 境界エッジハイライト
+void          SetHighlightMesh(CAreaMesh* pMesh);
+ID3D11Buffer* GetHighlightLineBuf(void);
+UINT          GetHighlightLineCount(void);
+CAreaMesh*    GetHighlightTarget(void);

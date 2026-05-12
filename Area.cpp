@@ -1082,6 +1082,70 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
 }
 
 //======================================================================
+// 選択メッシュ ワイヤーフレームハイライト
+//======================================================================
+void CArea::RenderHighlight(CAreaMesh* pTarget)
+{
+    ID3D11Buffer* lineBuf   = GetHighlightLineBuf();
+    UINT          lineCount = GetHighlightLineCount();
+    if (!pTarget || !lineBuf || lineCount == 0) return;
+    if (!m_pVS || !m_pPS || !m_pInputLayout || !m_pCB) return;
+
+    ID3D11DeviceContext* ctx = GetContext();
+    XMMATRIX view = LoadM(g_mView);
+    XMMATRIX proj = LoadM(g_mProjection);
+
+    ctx->VSSetShader(m_pVS, nullptr, 0);
+    ctx->PSSetShader(m_pPS, nullptr, 0);
+    ctx->IASetInputLayout(m_pInputLayout);
+    ctx->VSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->PSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->RSSetState(GetRastNone());
+    float bf[4] = {};
+    ctx->OMSetBlendState(GetBlendNone(), bf, 0xFFFFFFFF);
+    ctx->OMSetDepthStencilState(GetDSSNormal(), 0);
+    ID3D11SamplerState* samp = GetSampler();
+    ctx->PSSetSamplers(0, 1, &samp);
+
+    ID3D11ShaderResourceView* whiteSrv = GetWhiteSRV();
+    ID3D11ShaderResourceView* nullSrv  = nullptr;
+    ctx->PSSetShaderResources(0, 1, &whiteSrv);
+    ctx->PSSetShaderResources(1, 1, &nullSrv);
+
+    ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+    UINT stride = sizeof(D3DTEXVERTEX), offset = 0;
+    ctx->IASetVertexBuffers(0, 1, &lineBuf, &stride, &offset);
+
+    for (int i = 0; i < m_nObj; i++) {
+        if (m_pObjInfo[i].pAreaMesh != pTarget) continue;
+
+        XMMATRIX world = XMMatrixMultiply(LoadM(m_pObjInfo[i].mMat), LoadM(m_mRootTransform));
+        XMMATRIX wvp   = XMMatrixMultiply(world, XMMatrixMultiply(view, proj));
+
+        D3D11_MAPPED_SUBRESOURCE msr = {};
+        ctx->Map(m_pCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
+        CBData* cb = (CBData*)msr.pData;
+        XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
+        cb->mUV[0] = 0.f; cb->mUV[1] = 0.f;
+        cb->padding[0] = 0.0f; cb->padding[1] = 0.f;
+        cb->mCOL = XMFLOAT4(1.0f, 0.8f, 0.0f, 1.0f);
+        XMMATRIX normal = XMMatrixInverse(nullptr, world);
+        XMStoreFloat4x4(&cb->mN, XMMatrixTranspose(normal));
+        XMStoreFloat4x4(&cb->mW, XMMatrixTranspose(world));
+        cb->mLightDir     = XMFLOAT4(0.f, -1.f, 0.f, 0.f);
+        cb->mLightColor   = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
+        cb->mAmbientColor = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
+        cb->mCameraPos    = XMFLOAT4(g_mEye.x, g_mEye.y, g_mEye.z, 1.f);
+        cb->mSpecular     = XMFLOAT4(0.f, 0.f, 0.f, 0.f);
+        XMStoreFloat4x4(&cb->mLightVP, XMMatrixIdentity());
+        cb->mShadow       = XMFLOAT4(0.f, 0.f, 0.f, 0.f);
+        ctx->Unmap(m_pCB, 0);
+
+        ctx->Draw(lineCount * 2, 0);
+    }
+}
+
+//======================================================================
 // MAPデータ読み込み
 //======================================================================
 bool CArea::LoadMAP()
