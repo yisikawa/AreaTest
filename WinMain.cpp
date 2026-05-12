@@ -202,7 +202,7 @@ int __stdcall WinMain( HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show )
 
     ffxidir[0] = 0;
     if (ERROR_SUCCESS == RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-        "SOFTWARE\\PlayOnline\\InstallFolder", 0, KEY_READ, &hKey)) {
+        "SOFTWARE\\PlayOnline\\InstallFolder", 0, KEY_READ | KEY_WOW64_32KEY, &hKey)) {
         DWORD dwData = sizeof(ffxidir), dwType = REG_SZ;
         RegQueryValueEx(hKey, "0001", NULL, &dwType, (LPBYTE)ffxidir, &dwData);
         RegCloseKey(hKey);

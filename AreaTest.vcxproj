@@ -285,7 +285,7 @@
       <!-- DX11移行: d3d9/d3dx9 を削除し DX11 系ライブラリに変更 -->
       <AdditionalDependencies>libfbxsdk.lib;d3d11.lib;dxgi.lib;d3dcompiler.lib;winmm.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)AreaTest.exe</OutputFile>
-      <Version>0.36b</Version>
+      <Version>0.36</Version>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <ProgramDatabaseFile>$(OutDir)AreaTest.pdb</ProgramDatabaseFile>
       <SubSystem>Windows</SubSystem>
