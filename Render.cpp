@@ -137,7 +137,7 @@ void Rendering(void)
     poly += g_mArea.Rendering(g_mAt.x, g_mAt.y, g_mAt.z);
     AdDrawPolygons(poly);
 
-    GetSwapChain()->Present(0, 0);
+    GetSwapChain()->Present(1, 0);
 }
 
 //======================================================================
