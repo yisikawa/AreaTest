@@ -135,6 +135,7 @@ public:
 	virtual HRESULT         LoadAreaFromFile( char *filename, unsigned long FVF );
 	virtual void            InitData(void);
 	virtual unsigned long   Rendering( float PosX, float PosY, float PosZ, float alphaRef = 0.1f );
+	virtual void            RenderHighlight( CAreaMesh* pTarget );
 	virtual bool            CreateVertexShader( void );
 	virtual bool            InitShadowMap( void );
 	virtual void            ShadowPass( float PosX, float PosZ, float alphaRef );
@@ -142,6 +143,10 @@ public:
 	virtual bool            LoadMAP( void );
 	virtual int             GetArea(void) { return m_mArea; }
 	virtual void            SetArea( int mArea ) { m_mArea = mArea; }
+	virtual CList&          GetAreaMeshs()         { return m_AreaMeshs; }
+	virtual CList&          GetEffectModels()       { return m_EffectModels; }
+	virtual int             GetNObj()               { return m_nObj; }
+	virtual OBJINFO*        GetObjInfo(int i)       { return (i >= 0 && i < m_nObj) ? &m_pObjInfo[i] : nullptr; }
 	virtual bool            saveMQO(char *FPath, char *FName, float posX, float posY, float posZ);
 	virtual bool            saveMQO2(char *FPath, char *FName, float posX, float posY, float posZ);
 	virtual bool            saveMQO3(char *FPath, char *FName);

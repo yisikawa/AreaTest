@@ -6,6 +6,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <string.h>
+#include <map>
 #include "WinMain.h"
 #include "Render.h"
 #include "Area.h"
@@ -58,26 +59,81 @@ extern long g_mScreenWidth;
 extern long g_mScreenHeight;
 
 // DX11 レンダーステートオブジェクト
-static ID3D11BlendState*        g_pBlendNone    = nullptr;
-static ID3D11BlendState*        g_pBlendAlpha   = nullptr;
-static ID3D11RasterizerState*   g_pRastCCW      = nullptr;
-static ID3D11RasterizerState*   g_pRastCW       = nullptr;
-static ID3D11RasterizerState*   g_pRastNone     = nullptr;
-static ID3D11DepthStencilState* g_pDSSNormal    = nullptr;
-static ID3D11SamplerState*      g_pSampler       = nullptr;
-static ID3D11SamplerState*      g_pShadowSampler = nullptr;
+static ID3D11BlendState*        g_pBlendNone       = nullptr;
+static ID3D11BlendState*        g_pBlendAlpha      = nullptr;
+static ID3D11RasterizerState*   g_pRastCCW         = nullptr;
+static ID3D11RasterizerState*   g_pRastCW          = nullptr;
+static ID3D11RasterizerState*   g_pRastNone        = nullptr;
+static ID3D11RasterizerState*   g_pRastWireframe   = nullptr;
+static ID3D11DepthStencilState* g_pDSSNormal       = nullptr;
+static ID3D11SamplerState*      g_pSampler         = nullptr;
+static ID3D11SamplerState*      g_pShadowSampler   = nullptr;
+static ID3D11ShaderResourceView* g_pWhiteSRV       = nullptr;
+
+// 境界エッジハイライト
+static ID3D11Buffer* g_pHighlightLineBuf  = nullptr;
+static UINT          g_highlightLineCount = 0;
+static CAreaMesh*    g_pHighlightTarget   = nullptr;
 
 //======================================================================
 // アクセサ
 //======================================================================
 ID3D11BlendState*        GetBlendNone(void)   { return g_pBlendNone; }
 ID3D11BlendState*        GetBlendAlpha(void)  { return g_pBlendAlpha; }
-ID3D11RasterizerState*   GetRastCCW(void)     { return g_pRastCCW; }
-ID3D11RasterizerState*   GetRastCW(void)      { return g_pRastCW; }
-ID3D11RasterizerState*   GetRastNone(void)    { return g_pRastNone; }
-ID3D11DepthStencilState* GetDSSNormal(void)   { return g_pDSSNormal; }
-ID3D11SamplerState*      GetSampler(void)       { return g_pSampler; }
-ID3D11SamplerState*      GetShadowSampler(void) { return g_pShadowSampler; }
+ID3D11RasterizerState*    GetRastCCW(void)       { return g_pRastCCW; }
+ID3D11RasterizerState*    GetRastCW(void)        { return g_pRastCW; }
+ID3D11RasterizerState*    GetRastNone(void)      { return g_pRastNone; }
+ID3D11RasterizerState*    GetRastWireframe(void) { return g_pRastWireframe; }
+ID3D11DepthStencilState*  GetDSSNormal(void)     { return g_pDSSNormal; }
+ID3D11SamplerState*       GetSampler(void)       { return g_pSampler; }
+ID3D11SamplerState*       GetShadowSampler(void) { return g_pShadowSampler; }
+ID3D11ShaderResourceView* GetWhiteSRV(void)      { return g_pWhiteSRV; }
+ID3D11Buffer*             GetHighlightLineBuf(void)  { return g_pHighlightLineBuf; }
+UINT                      GetHighlightLineCount(void){ return g_highlightLineCount; }
+CAreaMesh*                GetHighlightTarget(void)   { return g_pHighlightTarget; }
+
+void SetHighlightMesh(CAreaMesh* pMesh)
+{
+    SAFE_RELEASE(g_pHighlightLineBuf);
+    g_highlightLineCount = 0;
+    g_pHighlightTarget   = pMesh;
+    if (!pMesh || pMesh->m_cpuVB.empty() || pMesh->m_cpuIB.empty()) return;
+
+    const D3DTEXVERTEX* verts  = reinterpret_cast<const D3DTEXVERTEX*>(pMesh->m_cpuVB.data());
+    const WORD*         pIndex = reinterpret_cast<const WORD*>(pMesh->m_cpuIB.data());
+
+    // TRIANGLESTRIP を三角形に展開してエッジ出現回数をカウント
+    std::map<std::pair<WORD,WORD>, int> edgeCount;
+    for (auto& s : pMesh->GetLStreams()) {
+        UINT start = s.GetIndexStart();
+        UINT faces = s.GetFaceCount();
+        for (UINT j = 0; j < faces; j++) {
+            WORD i0 = pIndex[start + j + 0];
+            WORD i1 = pIndex[start + j + 1];
+            WORD i2 = pIndex[start + j + 2];
+            if (i0 == i1 || i1 == i2 || i0 == i2) continue; // 縮退三角形
+            edgeCount[std::make_pair(i0<i1?i0:i1, i0<i1?i1:i0)]++;
+            edgeCount[std::make_pair(i1<i2?i1:i2, i1<i2?i2:i1)]++;
+            edgeCount[std::make_pair(i0<i2?i0:i2, i0<i2?i2:i0)]++;
+        }
+    }
+
+    // 出現1回のエッジ = 境界エッジ → 頂点ペアに展開
+    std::vector<D3DTEXVERTEX> lineVerts;
+    lineVerts.reserve(edgeCount.size() * 2);
+    for (auto& kv : edgeCount) {
+        if (kv.second == 1) {
+            lineVerts.push_back(verts[kv.first.first]);
+            lineVerts.push_back(verts[kv.first.second]);
+        }
+    }
+    if (lineVerts.empty()) return;
+
+    UINT byteSize = (UINT)(lineVerts.size() * sizeof(D3DTEXVERTEX));
+    if (FAILED(CreateBuffer11(&g_pHighlightLineBuf, byteSize,
+                              D3D11_BIND_VERTEX_BUFFER, lineVerts.data()))) return;
+    g_highlightLineCount = (UINT)(lineVerts.size() / 2);
+}
 
 //======================================================================
 //      DX11 バッファ生成 (Phase2)
@@ -135,9 +191,10 @@ void Rendering(void)
 
     unsigned long poly = 0;
     poly += g_mArea.Rendering(g_mAt.x, g_mAt.y, g_mAt.z);
+    g_mArea.RenderHighlight(GetHighlightTarget());
     AdDrawPolygons(poly);
 
-    GetSwapChain()->Present(0, 0);
+    GetSwapChain()->Present(1, 0);
 }
 
 //======================================================================
@@ -219,6 +276,34 @@ static bool CreateRenderStates(void)
         rd.DepthClipEnable       = TRUE;
         if (FAILED(dev->CreateRasterizerState(&rd, &g_pRastNone))) return false;
     }
+    // ラスタライザ: ワイヤーフレーム (ハイライト用)
+    {
+        D3D11_RASTERIZER_DESC rd = {};
+        rd.FillMode             = D3D11_FILL_WIREFRAME;
+        rd.CullMode             = D3D11_CULL_NONE;
+        rd.FrontCounterClockwise= FALSE;
+        rd.DepthClipEnable      = TRUE;
+        rd.DepthBias            = -1000;
+        rd.SlopeScaledDepthBias = -1.0f;
+        if (FAILED(dev->CreateRasterizerState(&rd, &g_pRastWireframe))) return false;
+    }
+    // 1×1 白テクスチャ (ハイライト用フラットカラー)
+    {
+        UINT white = 0xFFFFFFFF;
+        D3D11_TEXTURE2D_DESC td = {};
+        td.Width = td.Height = 1;
+        td.MipLevels = td.ArraySize = 1;
+        td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        td.SampleDesc.Count = 1;
+        td.Usage = D3D11_USAGE_IMMUTABLE;
+        td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        D3D11_SUBRESOURCE_DATA sd = { &white, 4, 0 };
+        ID3D11Texture2D* pTex = nullptr;
+        if (FAILED(dev->CreateTexture2D(&td, &sd, &pTex))) return false;
+        HRESULT hr = dev->CreateShaderResourceView(pTex, nullptr, &g_pWhiteSRV);
+        pTex->Release();
+        if (FAILED(hr)) return false;
+    }
     // 深度ステンシルステート: 深度テスト有効、ステンシル無効
     {
         D3D11_DEPTH_STENCIL_DESC dd = {};
@@ -293,7 +378,10 @@ void UnInitRender(void)
     SAFE_RELEASE(g_pRastCCW);
     SAFE_RELEASE(g_pRastCW);
     SAFE_RELEASE(g_pRastNone);
+    SAFE_RELEASE(g_pRastWireframe);
     SAFE_RELEASE(g_pDSSNormal);
     SAFE_RELEASE(g_pSampler);
     SAFE_RELEASE(g_pShadowSampler);
+    SAFE_RELEASE(g_pWhiteSRV);
+    SAFE_RELEASE(g_pHighlightLineBuf);
 }

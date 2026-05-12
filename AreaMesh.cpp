@@ -29,9 +29,9 @@ void CStream::SetMeshAttr(D3D11_PRIMITIVE_TOPOLOGY type,
     m_FaceCount     = face_count;
 }
 
-D3D11_PRIMITIVE_TOPOLOGY CStream::GetPrimitiveType(void) { return m_PrimitiveType; }
-unsigned long            CStream::GetIndexStart(void)    { return m_IndexStart; }
-unsigned long            CStream::GetFaceCount(void)     { return m_FaceCount; }
+D3D11_PRIMITIVE_TOPOLOGY CStream::GetPrimitiveType(void) const { return m_PrimitiveType; }
+unsigned long            CStream::GetIndexStart(void) const    { return m_IndexStart; }
+unsigned long            CStream::GetFaceCount(void) const     { return m_FaceCount; }
 
 //======================================================================
 // CTexture  (Phase3: ID3D11ShaderResourceView)
