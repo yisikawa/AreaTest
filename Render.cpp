@@ -75,6 +75,12 @@ static ID3D11Buffer* g_pHighlightLineBuf  = nullptr;
 static UINT          g_highlightLineCount = 0;
 static CAreaMesh*    g_pHighlightTarget   = nullptr;
 
+// 選択中 EffectModel ハイライト
+static CEffectModel* g_pHighlightEffMdl   = nullptr;
+
+// 選択中 Effect ハイライト（トランスフォーム付き単体描画用）
+static CEffect*      g_pHighlightEffect   = nullptr;
+
 //======================================================================
 // アクセサ
 //======================================================================
@@ -91,6 +97,11 @@ ID3D11ShaderResourceView* GetWhiteSRV(void)      { return g_pWhiteSRV; }
 ID3D11Buffer*             GetHighlightLineBuf(void)  { return g_pHighlightLineBuf; }
 UINT                      GetHighlightLineCount(void){ return g_highlightLineCount; }
 CAreaMesh*                GetHighlightTarget(void)   { return g_pHighlightTarget; }
+CEffectModel*             GetHighlightEffMdl(void)   { return g_pHighlightEffMdl; }
+CEffect*                  GetHighlightEffect(void)   { return g_pHighlightEffect; }
+
+void SetHighlightEffMdl(CEffectModel* pEfm) { g_pHighlightEffMdl = pEfm; }
+void SetHighlightEffect(CEffect* pEff)       { g_pHighlightEffect  = pEff; }
 
 void SetHighlightMesh(CAreaMesh* pMesh)
 {
@@ -191,6 +202,8 @@ void Rendering(void)
 
     unsigned long poly = 0;
     poly += g_mArea.Rendering(g_mAt.x, g_mAt.y, g_mAt.z);
+    g_mArea.RenderEffectModels(g_mAt.x, g_mAt.y, g_mAt.z);
+    g_mArea.RenderSingleEffect(GetHighlightEffect());
     g_mArea.RenderHighlight(GetHighlightTarget());
     AdDrawPolygons(poly);
 

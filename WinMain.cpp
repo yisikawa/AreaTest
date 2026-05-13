@@ -63,6 +63,7 @@ static std::vector<int> g_objInstances;
 static int  g_objInstCur         = -1;
 static int  g_instBaseLine       = 0;
 static int  g_canvasHighlightLine = -1;
+static std::vector<CEffect*> g_combo4Effects;
 
 unsigned long Polygons;
 float      g_mDispArea = 1500.f;
@@ -366,6 +367,7 @@ static void MoveToObjInst(int instIdx)
 
 static void SetCanvasMesh(CAreaMesh* pMesh)
 {
+    SetHighlightEffect(nullptr);
     SetHighlightMesh(pMesh);
     g_canvasLines.clear();
     g_objInstances.clear();
@@ -398,20 +400,36 @@ static void SetCanvasMesh(CAreaMesh* pMesh)
     RefreshCanvas();
 }
 
-static void SetCanvasEffectModel(CEffectModel* pEfm)
+static void SetCanvasEffect(CEffect* pEff)
 {
     SetHighlightMesh(nullptr);
+    SetHighlightEffMdl(nullptr);
+    SetHighlightEffect(pEff);
     g_canvasLines.clear();
-    if (!pEfm) { RefreshCanvas(); return; }
+    if (!pEff) { RefreshCanvas(); return; }
     char buf[160];
-    g_canvasLines.push_back("[ EffectModel Info ]");
+    g_canvasLines.push_back("[ Effect Info ]");
+    g_canvasLines.push_back("Name      : " + pEff->m_name);
+    g_canvasLines.push_back("Class     : " + pEff->m_class);
+    sprintf(buf, "pos       : X=%8.3f  Y=%8.3f  Z=%8.3f",
+            pEff->m_p01.x, pEff->m_p01.y, pEff->m_p01.z);
+    g_canvasLines.push_back(buf);
+    sprintf(buf, "rot  [rad]: X=%8.3f  Y=%8.3f  Z=%8.3f",
+            pEff->m_r09.x, pEff->m_r09.y, pEff->m_r09.z);
+    g_canvasLines.push_back(buf);
+    sprintf(buf, "scale     : X=%8.3f  Y=%8.3f  Z=%8.3f",
+            pEff->m_s0F.x, pEff->m_s0F.y, pEff->m_s0F.z);
+    g_canvasLines.push_back(buf);
+    sprintf(buf, "color RGBA: R=%.3f  G=%.3f  B=%.3f  A=%.3f",
+            pEff->m_color.x, pEff->m_color.y, pEff->m_color.z, pEff->m_color.w);
+    g_canvasLines.push_back(buf);
+    CEffectModel* pEfm = pEff->m_pEffectModel;
+    g_canvasLines.push_back("--- EffectModel ---");
     g_canvasLines.push_back("Name      : " + pEfm->m_Name);
     g_canvasLines.push_back("Type      : " + pEfm->m_type.substr(0, 4));
-    sprintf(buf, "ModelType : %d",   pEfm->m_ModelType);  g_canvasLines.push_back(buf);
-    sprintf(buf, "ModelNo   : %lu",  pEfm->m_ModelNo);    g_canvasLines.push_back(buf);
-    sprintf(buf, "ModelTotal: %lu",  pEfm->m_ModelTotal); g_canvasLines.push_back(buf);
-    sprintf(buf, "Vertices  : %lu",  pEfm->m_NumVertices);g_canvasLines.push_back(buf);
-    sprintf(buf, "Faces     : %lu",  pEfm->m_NumFaces);   g_canvasLines.push_back(buf);
+    sprintf(buf, "ModelType : %d",  pEfm->m_ModelType);  g_canvasLines.push_back(buf);
+    sprintf(buf, "ModelNo   : %lu", pEfm->m_ModelNo);    g_canvasLines.push_back(buf);
+    sprintf(buf, "ModelTotal: %lu", pEfm->m_ModelTotal); g_canvasLines.push_back(buf);
     RefreshCanvas();
 }
 
@@ -557,14 +575,20 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
                     SendMessage(GetDlgItem(in_hWnd, IDC_COMBO3), CB_SETCURSEL, 0, 0);
                 }
 
-                // COMBO4: EffectModel 一覧
+                // COMBO4: 有効な EffectModel を持つ Effect 一覧
                 SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_RESETCONTENT, 0, 0);
+                g_combo4Effects.clear();
                 {
-                    CEffectModel* pEfm = (CEffectModel*)g_mArea.GetEffectModels().Top();
-                    for (int idx = 0; pEfm; idx++, pEfm = (CEffectModel*)pEfm->Next) {
-                        sprintf(buf, "[%03d] %s  type:%.4s  modelType:%d", idx,
-                                pEfm->m_Name.c_str(), pEfm->m_type.c_str(), pEfm->m_ModelType);
+                    CEffect* pEff = (CEffect*)g_mArea.m_Effects.Top();
+                    for (; pEff; pEff = (CEffect*)pEff->Next) {
+                        if (!pEff->m_pEffectModel) continue;
+                        sprintf(buf, "[%03d] %s  class:%s  -> %s",
+                                (int)g_combo4Effects.size(),
+                                pEff->m_name.c_str(),
+                                pEff->m_class.c_str(),
+                                pEff->m_pEffectModel->m_Name.c_str());
                         SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_ADDSTRING, 0, (LPARAM)buf);
+                        g_combo4Effects.push_back(pEff);
                     }
                     SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, 0, 0);
                 }
@@ -589,7 +613,8 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
         case IDC_COMBO4:
             if (HIWORD(in_wParam) == CBN_SELCHANGE) {
                 int sel = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, 0, 0);
-                SetCanvasEffectModel((CEffectModel*)g_mArea.GetEffectModels().Data(sel));
+                if (sel >= 0 && sel < (int)g_combo4Effects.size())
+                    SetCanvasEffect(g_combo4Effects[sel]);
             }
             break;
         case IDC_BTN_OBJ_TOP:

@@ -1082,6 +1082,222 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
 }
 
 //======================================================================
+// エフェクトモデル描画
+//======================================================================
+void CArea::RenderEffectModels(float PosX, float PosY, float PosZ)
+{
+    if (!m_pVS || !m_pPS || !m_pInputLayout || !m_pCB) return;
+
+    // 描画すべきEffectModelを持つEffectが存在するか確認
+    bool anyVisible = false;
+    CEffect* pEffect = (CEffect*)m_Effects.Top();
+    while (pEffect) {
+        if (pEffect->m_pEffectModel && pEffect->m_pEffectModel->m_lpVB &&
+            pEffect->m_pEffectModel->m_lpIB)
+        {
+            anyVisible = true;
+            break;
+        }
+        pEffect = (CEffect*)pEffect->Next;
+    }
+    if (!anyVisible) return;
+
+    ID3D11DeviceContext* ctx = GetContext();
+    XMMATRIX view     = LoadM(g_mView);
+    XMMATRIX proj     = LoadM(g_mProjection);
+    XMMATRIX areaRoot = LoadM(m_mRootTransform);
+
+    ctx->VSSetShader(m_pVS, nullptr, 0);
+    ctx->PSSetShader(m_pPS, nullptr, 0);
+    ctx->IASetInputLayout(m_pInputLayout);
+    ctx->VSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->PSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ctx->RSSetState(GetRastNone());
+    ctx->OMSetDepthStencilState(GetDSSNormal(), 0);
+
+    ID3D11SamplerState* samp       = GetSampler();
+    ID3D11SamplerState* shadowSamp = GetShadowSampler();
+    ctx->PSSetSamplers(0, 1, &samp);
+    ctx->PSSetSamplers(1, 1, &shadowSamp);
+    ctx->PSSetShaderResources(1, 1, &m_pShadowSRV);
+
+    float bf[4] = {};
+    ctx->OMSetBlendState(GetBlendAlpha(), bf, 0xFFFFFFFF);
+
+    pEffect = (CEffect*)m_Effects.Top();
+    while (pEffect) {
+        CEffectModel* pEffMdl = pEffect->m_pEffectModel;
+        if (pEffMdl && pEffMdl->m_lpVB && pEffMdl->m_lpIB) {
+            XMMATRIX world = XMMatrixMultiply(LoadM(pEffect->m_mRootTransform), areaRoot);
+            XMMATRIX wvp   = XMMatrixMultiply(world, XMMatrixMultiply(view, proj));
+
+            UINT stride = sizeof(EFFECTVERTEX), offset = 0;
+            ctx->IASetVertexBuffers(0, 1, &pEffMdl->m_lpVB, &stride, &offset);
+            ctx->IASetIndexBuffer(pEffMdl->m_lpIB, DXGI_FORMAT_R16_UINT, 0);
+
+            D3D11_MAPPED_SUBRESOURCE msr = {};
+            ctx->Map(m_pCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
+            CBData* cb = (CBData*)msr.pData;
+            XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
+            cb->mUV[0]    = pEffect->m_uv.x;
+            cb->mUV[1]    = pEffect->m_uv.y;
+            cb->padding[0] = 0.f; cb->padding[1] = 0.f;
+            cb->mCOL = pEffect->param[0x16]
+                ? pEffect->m_color
+                : XMFLOAT4(1.f, 1.f, 1.f, 1.f);
+            XMMATRIX invWorld = XMMatrixInverse(nullptr, world);
+            XMStoreFloat4x4(&cb->mN, XMMatrixTranspose(invWorld));
+            XMStoreFloat4x4(&cb->mW, XMMatrixTranspose(world));
+            cb->mLightDir     = XMFLOAT4(g_mLightDir.x, g_mLightDir.y, g_mLightDir.z, 0.f);
+            cb->mLightColor   = XMFLOAT4(1.0f, 0.95f, 0.8f, 1.f);
+            cb->mAmbientColor = XMFLOAT4(0.2f, 0.22f, 0.3f, 1.f);
+            cb->mCameraPos    = XMFLOAT4(g_mEye.x, g_mEye.y, g_mEye.z, 1.f);
+            cb->mSpecular     = XMFLOAT4(32.f, 0.3f, 0.f, 0.f);
+            XMStoreFloat4x4(&cb->mLightVP, XMMatrixTranspose(LoadM(m_mLightVP)));
+            cb->mShadow       = XMFLOAT4(0.002f, 0.6f, 1.0f / SHADOW_MAP_SIZE, 0.f);
+            ctx->Unmap(m_pCB, 0);
+
+            ID3D11ShaderResourceView* srv =
+                pEffMdl->m_pTexture ? pEffMdl->m_pTexture->GetTexture() : GetWhiteSRV();
+            ctx->PSSetShaderResources(0, 1, &srv);
+
+            ctx->DrawIndexed((UINT)pEffMdl->m_NumIndex, 0, 0);
+        }
+        pEffect = (CEffect*)pEffect->Next;
+    }
+
+    ctx->OMSetBlendState(GetBlendNone(), bf, 0xFFFFFFFF);
+}
+
+//======================================================================
+// 選択 EffectModel ワイヤーフレーム表示（COMBO4 選択時の確認用）
+//======================================================================
+void CArea::RenderSingleEffectModel(CEffectModel* pEfm)
+{
+    if (!pEfm || !pEfm->m_lpVB || !pEfm->m_lpIB) return;
+    if (!m_pVS || !m_pPS || !m_pInputLayout || !m_pCB) return;
+
+    ID3D11DeviceContext* ctx = GetContext();
+    XMMATRIX view  = LoadM(g_mView);
+    XMMATRIX proj  = LoadM(g_mProjection);
+    XMMATRIX world = LoadM(m_mRootTransform);
+    XMMATRIX wvp   = XMMatrixMultiply(world, XMMatrixMultiply(view, proj));
+
+    ctx->VSSetShader(m_pVS, nullptr, 0);
+    ctx->PSSetShader(m_pPS, nullptr, 0);
+    ctx->IASetInputLayout(m_pInputLayout);
+    ctx->VSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->PSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ctx->RSSetState(GetRastWireframe());
+    ctx->OMSetDepthStencilState(GetDSSNormal(), 0);
+    float bf[4] = {};
+    ctx->OMSetBlendState(GetBlendNone(), bf, 0xFFFFFFFF);
+
+    ID3D11SamplerState* samp = GetSampler();
+    ctx->PSSetSamplers(0, 1, &samp);
+
+    UINT stride = sizeof(EFFECTVERTEX), offset = 0;
+    ctx->IASetVertexBuffers(0, 1, &pEfm->m_lpVB, &stride, &offset);
+    ctx->IASetIndexBuffer(pEfm->m_lpIB, DXGI_FORMAT_R16_UINT, 0);
+
+    D3D11_MAPPED_SUBRESOURCE msr = {};
+    ctx->Map(m_pCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
+    CBData* cb = (CBData*)msr.pData;
+    XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
+    cb->mUV[0] = 0.f; cb->mUV[1] = 0.f;
+    cb->padding[0] = 0.f; cb->padding[1] = 0.f;
+    cb->mCOL          = XMFLOAT4(1.f, 0.8f, 0.f, 1.f);  // 黄色ワイヤー
+    XMMATRIX invWorld = XMMatrixInverse(nullptr, world);
+    XMStoreFloat4x4(&cb->mN, XMMatrixTranspose(invWorld));
+    XMStoreFloat4x4(&cb->mW, XMMatrixTranspose(world));
+    cb->mLightDir     = XMFLOAT4(0.f, 0.f, 0.f, 0.f);
+    cb->mLightColor   = XMFLOAT4(0.f, 0.f, 0.f, 0.f);   // ライティングなし
+    cb->mAmbientColor = XMFLOAT4(1.f, 1.f, 1.f, 1.f);   // フルアンビエント
+    cb->mCameraPos    = XMFLOAT4(g_mEye.x, g_mEye.y, g_mEye.z, 1.f);
+    cb->mSpecular     = XMFLOAT4(0.f, 0.f, 0.f, 0.f);
+    XMStoreFloat4x4(&cb->mLightVP, XMMatrixTranspose(LoadM(m_mLightVP)));
+    cb->mShadow       = XMFLOAT4(0.f, 0.f, 0.f, 0.f);   // シャドウなし
+    ctx->Unmap(m_pCB, 0);
+
+    ID3D11ShaderResourceView* srv = GetWhiteSRV();
+    ctx->PSSetShaderResources(0, 1, &srv);
+
+    ctx->DrawIndexed((UINT)pEfm->m_NumIndex, 0, 0);
+}
+
+//======================================================================
+// 選択 Effect ワイヤーフレーム表示（Effect トランスフォーム・テクスチャ反映）
+//======================================================================
+void CArea::RenderSingleEffect(CEffect* pEff)
+{
+    if (!pEff || !pEff->m_pEffectModel) return;
+    CEffectModel* pEfm = pEff->m_pEffectModel;
+    if (!pEfm->m_lpVB || !pEfm->m_lpIB) return;
+    if (!m_pVS || !m_pPS || !m_pInputLayout || !m_pCB) return;
+
+    ID3D11DeviceContext* ctx = GetContext();
+    XMMATRIX view     = LoadM(g_mView);
+    XMMATRIX proj     = LoadM(g_mProjection);
+    // m_mRootTransform は T×R×S 順（回転中心を平行移動してから回転・スケール）のため
+    // パネル表示値と視覚位置を一致させるため標準 SRT 順で再構築する
+    XMMATRIX areaRoot = LoadM(m_mRootTransform);
+    XMMATRIX local    = XMMatrixScaling(pEff->m_s0F.x, pEff->m_s0F.y, pEff->m_s0F.z)
+                      * XMMatrixRotationZ(pEff->m_r09.z)
+                      * XMMatrixRotationY(pEff->m_r09.y)
+                      * XMMatrixRotationX(pEff->m_r09.x)
+                      * XMMatrixTranslation(pEff->m_p01.x, pEff->m_p01.y, pEff->m_p01.z);
+    XMMATRIX world    = XMMatrixMultiply(local, areaRoot);
+    XMMATRIX wvp      = XMMatrixMultiply(world, XMMatrixMultiply(view, proj));
+
+    ctx->VSSetShader(m_pVS, nullptr, 0);
+    ctx->PSSetShader(m_pPS, nullptr, 0);
+    ctx->IASetInputLayout(m_pInputLayout);
+    ctx->VSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->PSSetConstantBuffers(0, 1, &m_pCB);
+    ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ctx->RSSetState(GetRastWireframe());
+    ctx->OMSetDepthStencilState(GetDSSNormal(), 0);
+    float bf[4] = {};
+    ctx->OMSetBlendState(GetBlendNone(), bf, 0xFFFFFFFF);
+
+    ID3D11SamplerState* samp = GetSampler();
+    ctx->PSSetSamplers(0, 1, &samp);
+
+    UINT stride = sizeof(EFFECTVERTEX), offset = 0;
+    ctx->IASetVertexBuffers(0, 1, &pEfm->m_lpVB, &stride, &offset);
+    ctx->IASetIndexBuffer(pEfm->m_lpIB, DXGI_FORMAT_R16_UINT, 0);
+
+    D3D11_MAPPED_SUBRESOURCE msr = {};
+    ctx->Map(m_pCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
+    CBData* cb = (CBData*)msr.pData;
+    XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
+    cb->mUV[0] = 0.f; cb->mUV[1] = 0.f;
+    cb->padding[0] = 0.f; cb->padding[1] = 0.f;
+    cb->mCOL          = pEff->param[0x16]
+                          ? XMFLOAT4(pEff->m_color.x, pEff->m_color.y, pEff->m_color.z, 1.f)
+                          : XMFLOAT4(1.f, 0.8f, 0.f, 1.f);  // カラー未設定時は黄色
+    XMMATRIX invWorld = XMMatrixInverse(nullptr, world);
+    XMStoreFloat4x4(&cb->mN, XMMatrixTranspose(invWorld));
+    XMStoreFloat4x4(&cb->mW, XMMatrixTranspose(world));
+    cb->mLightDir     = XMFLOAT4(0.f, 0.f, 0.f, 0.f);
+    cb->mLightColor   = XMFLOAT4(0.f, 0.f, 0.f, 0.f);
+    cb->mAmbientColor = XMFLOAT4(1.f, 1.f, 1.f, 1.f);
+    cb->mCameraPos    = XMFLOAT4(g_mEye.x, g_mEye.y, g_mEye.z, 1.f);
+    cb->mSpecular     = XMFLOAT4(0.f, 0.f, 0.f, 0.f);
+    XMStoreFloat4x4(&cb->mLightVP, XMMatrixTranspose(LoadM(m_mLightVP)));
+    cb->mShadow       = XMFLOAT4(0.f, 0.f, 0.f, 0.f);
+    ctx->Unmap(m_pCB, 0);
+
+    ID3D11ShaderResourceView* srv =
+        pEfm->m_pTexture ? pEfm->m_pTexture->GetTexture() : GetWhiteSRV();
+    ctx->PSSetShaderResources(0, 1, &srv);
+
+    ctx->DrawIndexed((UINT)pEfm->m_NumIndex, 0, 0);
+}
+
+//======================================================================
 // 選択メッシュ ワイヤーフレームハイライト
 //======================================================================
 void CArea::RenderHighlight(CAreaMesh* pTarget)
@@ -1164,12 +1380,12 @@ bool CArea::LoadMAP()
     hr = LoadTextureFromFile(FileName);  if (hr) return false;
     hr = LoadAreaFromFile(FileName, FVF); if (hr) return false;
     InitEffectModel();
-    //LoadEffectModelFromFile(FileName);
+    LoadEffectModelFromFile(FileName);
     //LoadEffectModelFromFile(FileName2);
-    //LoadEffectModel2FromFile(FileName);
+    LoadEffectModel2FromFile(FileName);
     //LoadEffectModel2FromFile(FileName2);
     InitEffect();
-    //LoadEffectFromFile(FileName);
+    LoadEffectFromFile(FileName);
     return true;
 }
 

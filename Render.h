@@ -11,6 +11,8 @@
 #define IDC_STATIC -1
 
 class CAreaMesh;
+class CEffectModel;
+class CEffect;
 
 //======================================================================
 // 定数バッファ構造体 (hlsl.fx に対応: 320 バイト)
@@ -69,3 +71,11 @@ void          SetHighlightMesh(CAreaMesh* pMesh);
 ID3D11Buffer* GetHighlightLineBuf(void);
 UINT          GetHighlightLineCount(void);
 CAreaMesh*    GetHighlightTarget(void);
+
+// EffectModel ハイライト
+void          SetHighlightEffMdl(CEffectModel* pEfm);
+CEffectModel* GetHighlightEffMdl(void);
+
+// Effect ハイライト（トランスフォーム付き単体描画用）
+void          SetHighlightEffect(CEffect* pEff);
+CEffect*      GetHighlightEffect(void);
