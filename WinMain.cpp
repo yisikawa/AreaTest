@@ -59,6 +59,10 @@ HWND hDlg1;
 HWND hCanvas = NULL;
 static std::vector<std::string> g_canvasLines;
 static int g_scrollPos = 0;
+static std::vector<int> g_objInstances;
+static int  g_objInstCur         = -1;
+static int  g_instBaseLine       = 0;
+static int  g_canvasHighlightLine = -1;
 
 unsigned long Polygons;
 float      g_mDispArea = 1500.f;
@@ -164,6 +168,16 @@ void BackAt( void )
     XMVECTOR Pos = XMVector3Normalize(LoadV(g_mAt) - LoadV(g_mEye));
     g_mAt.x -= XMVectorGetX(Pos) * 3.f;
     g_mAt.z -= XMVectorGetZ(Pos) * 3.f;
+    UpdateEyeAndView();
+}
+
+static void MoveToObject(int objIdx)
+{
+    OBJINFO* p = g_mArea.GetObjInfo(objIdx);
+    if (!p) return;
+    g_mAt.x =  p->mObj.fTransX;
+    g_mAt.y = -p->mObj.fTransY;  // m_mRootTransform の Y反転に合わせる
+    g_mAt.z =  p->mObj.fTransZ;
     UpdateEyeAndView();
 }
 
@@ -337,10 +351,26 @@ static void RefreshCanvas()
     InvalidateRect(hCanvas, NULL, TRUE);
 }
 
+static void MoveToObjInst(int instIdx)
+{
+    if (instIdx < 0 || instIdx >= (int)g_objInstances.size()) return;
+    g_objInstCur          = instIdx;
+    g_canvasHighlightLine = g_instBaseLine + instIdx;
+    if (hCanvas) {
+        g_scrollPos = max(0, g_canvasHighlightLine * CANVAS_LINE_H - 50);
+        UpdateScrollBar(hCanvas);
+        InvalidateRect(hCanvas, NULL, TRUE);
+    }
+    MoveToObject(g_objInstances[instIdx]);
+}
+
 static void SetCanvasMesh(CAreaMesh* pMesh)
 {
     SetHighlightMesh(pMesh);
     g_canvasLines.clear();
+    g_objInstances.clear();
+    g_objInstCur          = -1;
+    g_canvasHighlightLine = -1;
     if (!pMesh) { RefreshCanvas(); return; }
     char buf[160];
     g_canvasLines.push_back("[ Mesh Info ]");
@@ -352,6 +382,7 @@ static void SetCanvasMesh(CAreaMesh* pMesh)
     sprintf(buf, "BoxLow    : X=%8.2f  Y=%8.2f  Z=%8.2f", lo.x, lo.y, lo.z); g_canvasLines.push_back(buf);
     sprintf(buf, "BoxHigh   : X=%8.2f  Y=%8.2f  Z=%8.2f", hi.x, hi.y, hi.z); g_canvasLines.push_back(buf);
     g_canvasLines.push_back("--- Instances ---");
+    g_instBaseLine = (int)g_canvasLines.size();
     int cnt = 0;
     for (int i = 0; i < g_mArea.GetNObj(); i++) {
         OBJINFO* p = g_mArea.GetObjInfo(i);
@@ -359,6 +390,7 @@ static void SetCanvasMesh(CAreaMesh* pMesh)
             sprintf(buf, "OBJ[%03d]  pos(%8.2f,%8.2f,%8.2f)", i,
                     p->mObj.fTransX, p->mObj.fTransY, p->mObj.fTransZ);
             g_canvasLines.push_back(buf);
+            g_objInstances.push_back(i);
             cnt++;
         }
     }
@@ -398,13 +430,16 @@ LRESULT CALLBACK CanvasProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         SetTextColor(hdc, RGB(0, 0, 0));
         SetBkMode(hdc, TRANSPARENT);
         int y = 2 - g_scrollPos;
-        RECT lineRc = { 4, y, rc.right - 4, y + CANVAS_LINE_H };
-        for (const auto& line : g_canvasLines) {
-            if (lineRc.bottom > 0 && lineRc.top < rc.bottom)
-                DrawText(hdc, line.c_str(), -1, &lineRc, DT_LEFT | DT_SINGLELINE);
-            lineRc.top    += CANVAS_LINE_H;
-            lineRc.bottom += CANVAS_LINE_H;
+        for (int li = 0; li < (int)g_canvasLines.size(); li++) {
+            RECT lineRc = { 4, y + li * CANVAS_LINE_H, rc.right - 4, y + (li + 1) * CANVAS_LINE_H };
+            if (lineRc.bottom <= 0) continue;
             if (lineRc.top >= rc.bottom) break;
+            if (li == g_canvasHighlightLine) {
+                HBRUSH hBr = CreateSolidBrush(RGB(173, 216, 230));
+                FillRect(hdc, &lineRc, hBr);
+                DeleteObject(hBr);
+            }
+            DrawText(hdc, g_canvasLines[li].c_str(), -1, &lineRc, DT_LEFT | DT_SINGLELINE);
         }
         EndPaint(hWnd, &ps);
         return 0;
@@ -480,9 +515,9 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
             SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_INSERTSTRING, (WPARAM)i, (LPARAM)ListRange[i]);
         SendMessage(GetDlgItem(in_hWnd, IDC_COMBO5), CB_SETCURSEL, (WPARAM)2, 0L);
         SetFocus(GetDlgItem(in_hWnd, IDC_COMBO1));
-        // カスタム描画キャンバスを生成 (LIST1+LIST2 の合計領域)
+        // カスタム描画キャンバスを生成 (ナビゲーションボタン行の下)
         {
-            RECT rc = { 7, 59, 7 + 278, 59 + 233 };
+            RECT rc = { 7, 75, 7 + 278, 75 + 217 };
             MapDialogRect(in_hWnd, &rc);
             hCanvas = CreateWindowEx(
                 WS_EX_CLIENTEDGE, "AreaTestCanvas", NULL,
@@ -556,6 +591,20 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
                 int sel = (int)SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_GETCURSEL, 0, 0);
                 SetCanvasEffectModel((CEffectModel*)g_mArea.GetEffectModels().Data(sel));
             }
+            break;
+        case IDC_BTN_OBJ_TOP:
+            MoveToObjInst(0);
+            break;
+        case IDC_BTN_OBJ_PREV:
+            MoveToObjInst(g_objInstCur > 0 ? g_objInstCur - 1 : 0);
+            break;
+        case IDC_BTN_OBJ_NEXT:
+            MoveToObjInst(g_objInstCur + 1 < (int)g_objInstances.size()
+                          ? g_objInstCur + 1
+                          : (int)g_objInstances.size() - 1);
+            break;
+        case IDC_BTN_OBJ_LAST:
+            MoveToObjInst((int)g_objInstances.size() - 1);
             break;
         case IDC_COMBO5:
             if (HIWORD(in_wParam) == CBN_SELCHANGE) {

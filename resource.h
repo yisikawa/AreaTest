@@ -38,6 +38,10 @@
 #define IDC_EDIT8                       1036
 #define IDC_LIST1                       1037
 #define IDC_LIST2                       1038
+#define IDC_BTN_OBJ_TOP                 1039
+#define IDC_BTN_OBJ_PREV                1040
+#define IDC_BTN_OBJ_NEXT                1041
+#define IDC_BTN_OBJ_LAST                1042
 #define ID_MNU_OPEN                     40001
 #define ID_MNU_SAVE                     40002
 #define ID_MNU_EXIT                     40003
@@ -293,7 +297,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        111
 #define _APS_NEXT_COMMAND_VALUE         40265
-#define _APS_NEXT_CONTROL_VALUE         1039
+#define _APS_NEXT_CONTROL_VALUE         1043
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
