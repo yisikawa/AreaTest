@@ -48,8 +48,8 @@ extern  float       g_mAspect;
 extern  float       g_mNear_z;
 extern  float       g_mFar_z;
 
-long g_mScreenWidth  = 800;
-long g_mScreenHeight = 600;
+long g_mScreenWidth  = 1280;
+long g_mScreenHeight = 720;
 static char* AppName   = "AreaTest ver0.10";
 static char* ClassName = "Area Viewer";
 static DWORD FPS;
