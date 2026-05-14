@@ -411,6 +411,7 @@ static void SetCanvasEffect(CEffect* pEff)
     g_canvasLines.push_back("[ Effect Info ]");
     g_canvasLines.push_back("Name      : " + pEff->m_name);
     g_canvasLines.push_back("Class     : " + pEff->m_class);
+    sprintf(buf, "lifetime  : %lu ms", pEff->m_lifeTime); g_canvasLines.push_back(buf);
     sprintf(buf, "pos       : X=%8.3f  Y=%8.3f  Z=%8.3f",
             pEff->m_p01.x, pEff->m_p01.y, pEff->m_p01.z);
     g_canvasLines.push_back(buf);
@@ -593,8 +594,11 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
                     SendMessage(GetDlgItem(in_hWnd, IDC_COMBO4), CB_SETCURSEL, 0, 0);
                 }
 
-                // キャンバス：先頭メッシュ情報を表示
-                SetCanvasMesh((CAreaMesh*)g_mArea.GetAreaMeshs().Data(0));
+                // キャンバス：Effectがあれば先頭Effect、なければ先頭メッシュを表示
+                if (!g_combo4Effects.empty())
+                    SetCanvasEffect(g_combo4Effects[0]);
+                else
+                    SetCanvasMesh((CAreaMesh*)g_mArea.GetAreaMeshs().Data(0));
             }
             break;
         case IDC_COMBO2:
