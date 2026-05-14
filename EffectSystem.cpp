@@ -314,11 +314,11 @@ void CEffect::GetEffectMatrix(char* pBuff, CKeyFrame* pKeyFrame)
         case 0x00:
         {
             XMMATRIX xm = LoadM(m_mRootTransform);
-            xm = XMMatrixMultiply(XMMatrixScaling(m_s0F.x, m_s0F.y, m_s0F.z), xm);
-            xm = XMMatrixMultiply(XMMatrixRotationZ(m_r09.z), xm);
-            xm = XMMatrixMultiply(XMMatrixRotationY(m_r09.y), xm);
-            xm = XMMatrixMultiply(XMMatrixRotationX(m_r09.x), xm);
             xm = XMMatrixMultiply(XMMatrixTranslation(m_p01.x, m_p01.y, m_p01.z), xm);
+            xm = XMMatrixMultiply(XMMatrixRotationX(m_r09.x), xm);
+            xm = XMMatrixMultiply(XMMatrixRotationY(m_r09.y), xm);
+            xm = XMMatrixMultiply(XMMatrixRotationZ(m_r09.z), xm);
+            xm = XMMatrixMultiply(XMMatrixScaling(m_s0F.x, m_s0F.y, m_s0F.z), xm);
             StoreM(m_mRootTransform, xm);
             return;
         }

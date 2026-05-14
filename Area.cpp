@@ -1123,7 +1123,7 @@ void CArea::RenderEffectModels(float PosX, float PosY, float PosZ)
     ctx->PSSetShaderResources(1, 1, &m_pShadowSRV);
 
     float bf[4] = {};
-    ctx->OMSetBlendState(GetBlendAlpha(), bf, 0xFFFFFFFF);
+    ctx->OMSetBlendState(GetBlendNone(), bf, 0xFFFFFFFF);
 
     pEffect = (CEffect*)m_Effects.Top();
     while (pEffect) {
@@ -1140,6 +1140,9 @@ void CArea::RenderEffectModels(float PosX, float PosY, float PosZ)
             ctx->Map(m_pCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
             CBData* cb = (CBData*)msr.pData;
             XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
+            BOOL kfEnd;
+            if (pEffect->m_kfu) pEffect->m_kfu->GetValue(timeGetTime(), &pEffect->m_uv.x, &kfEnd);
+            if (pEffect->m_kfv) pEffect->m_kfv->GetValue(timeGetTime(), &pEffect->m_uv.y, &kfEnd);
             cb->mUV[0]    = pEffect->m_uv.x;
             cb->mUV[1]    = pEffect->m_uv.y;
             cb->padding[0] = 0.f; cb->padding[1] = 0.f;
@@ -1240,15 +1243,8 @@ void CArea::RenderSingleEffect(CEffect* pEff)
     ID3D11DeviceContext* ctx = GetContext();
     XMMATRIX view     = LoadM(g_mView);
     XMMATRIX proj     = LoadM(g_mProjection);
-    // m_mRootTransform は T×R×S 順（回転中心を平行移動してから回転・スケール）のため
-    // パネル表示値と視覚位置を一致させるため標準 SRT 順で再構築する
     XMMATRIX areaRoot = LoadM(m_mRootTransform);
-    XMMATRIX local    = XMMatrixScaling(pEff->m_s0F.x, pEff->m_s0F.y, pEff->m_s0F.z)
-                      * XMMatrixRotationZ(pEff->m_r09.z)
-                      * XMMatrixRotationY(pEff->m_r09.y)
-                      * XMMatrixRotationX(pEff->m_r09.x)
-                      * XMMatrixTranslation(pEff->m_p01.x, pEff->m_p01.y, pEff->m_p01.z);
-    XMMATRIX world    = XMMatrixMultiply(local, areaRoot);
+    XMMATRIX world    = XMMatrixMultiply(LoadM(pEff->m_mRootTransform), areaRoot);
     XMMATRIX wvp      = XMMatrixMultiply(world, XMMatrixMultiply(view, proj));
 
     ctx->VSSetShader(m_pVS, nullptr, 0);
