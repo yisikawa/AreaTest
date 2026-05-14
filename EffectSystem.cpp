@@ -248,6 +248,8 @@ void CEffect::InitData(void)
     m_kfrx = m_kfry = m_kfrz = nullptr;
     m_kfsx = m_kfsy = m_kfsz = nullptr;
     m_kfu  = m_kfv  = nullptr;
+    m_uvAccum = { 0.f, 0.f };
+    m_uvTimer = timeGetTime();
     m_pAreaMesh    = nullptr;
     m_pEffectModel = nullptr;
 }

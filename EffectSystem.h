@@ -128,6 +128,8 @@ public:
     XMFLOAT4     m_color;   // replaces D3DCOLORVALUE
     DWORD        m_kind1, m_kind2;
     float        m_08dist;
+    XMFLOAT2     m_uvAccum;  // UV累積オフセット（毎フレーム m_uv を加算）
+    DWORD        m_uvTimer;  // 現サイクル開始時刻(ms)
     CKeyFrame   *m_Rd, *m_Gr, *m_Bl, *m_Al,
                 *m_kfpx, *m_kfpy, *m_kfpz,
                 *m_kfrx, *m_kfry, *m_kfrz,

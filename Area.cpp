@@ -1140,11 +1140,26 @@ void CArea::RenderEffectModels(float PosX, float PosY, float PosZ)
             ctx->Map(m_pCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
             CBData* cb = (CBData*)msr.pData;
             XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
-            BOOL kfEnd;
-            if (pEffect->m_kfu) pEffect->m_kfu->GetValue(timeGetTime(), &pEffect->m_uv.x, &kfEnd);
-            if (pEffect->m_kfv) pEffect->m_kfv->GetValue(timeGetTime(), &pEffect->m_uv.y, &kfEnd);
-            cb->mUV[0]    = pEffect->m_uv.x;
-            cb->mUV[1]    = pEffect->m_uv.y;
+            {
+                DWORD now = timeGetTime();
+                if (pEffect->m_kfu || pEffect->m_kfv) {
+                    // キーフレームあり：時刻から直接補間
+                    BOOL kfEnd;
+                    if (pEffect->m_kfu) pEffect->m_kfu->GetValue(now, &pEffect->m_uvAccum.x, &kfEnd);
+                    if (pEffect->m_kfv) pEffect->m_kfv->GetValue(now, &pEffect->m_uvAccum.y, &kfEnd);
+                } else {
+                    // キーフレームなし：毎フレーム m_uv を累積、lifetime超過でリセット
+                    if (pEffect->m_lifeTime > 0 &&
+                        (now - pEffect->m_uvTimer) >= pEffect->m_lifeTime) {
+                        pEffect->m_uvAccum = { 0.f, 0.f };
+                        pEffect->m_uvTimer = now;
+                    }
+                    pEffect->m_uvAccum.x += pEffect->m_uv.x;
+                    pEffect->m_uvAccum.y += pEffect->m_uv.y;
+                }
+                cb->mUV[0] = pEffect->m_uvAccum.x;
+                cb->mUV[1] = pEffect->m_uvAccum.y;
+            }
             cb->padding[0] = 0.f; cb->padding[1] = 0.f;
             cb->mCOL = pEffect->param[0x16]
                 ? pEffect->m_color
