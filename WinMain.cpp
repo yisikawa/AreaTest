@@ -431,6 +431,19 @@ static void SetCanvasEffect(CEffect* pEff)
     sprintf(buf, "ModelType : %d",  pEfm->m_ModelType);  g_canvasLines.push_back(buf);
     sprintf(buf, "ModelNo   : %lu", pEfm->m_ModelNo);    g_canvasLines.push_back(buf);
     sprintf(buf, "ModelTotal: %lu", pEfm->m_ModelTotal); g_canvasLines.push_back(buf);
+    if (pEfm->m_ModelType == 0x21 && pEfm->m_ModelTotal > 0) {
+        int side = (int)sqrtf((float)pEfm->m_ModelTotal);
+        if (side * side == (int)pEfm->m_ModelTotal)
+            sprintf(buf, "Flipbook  : %lu frames (%d x %d grid)", pEfm->m_ModelTotal, side, side);
+        else
+            sprintf(buf, "Flipbook  : %lu frames", pEfm->m_ModelTotal);
+        g_canvasLines.push_back(buf);
+        if (pEff->m_lifeTime > 0)
+            sprintf(buf, "Frame dur : %.1f ms/frame", (float)pEff->m_lifeTime / (float)pEfm->m_ModelTotal);
+        else
+            sprintf(buf, "Frame dur : (no lifetime)");
+        g_canvasLines.push_back(buf);
+    }
     RefreshCanvas();
 }
 

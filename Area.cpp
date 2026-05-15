@@ -1081,6 +1081,39 @@ unsigned long CArea::Rendering(float PosX, float PosY, float PosZ, float alphaRe
     return count;
 }
 
+//----------------------------------------------------------------------
+// 0x1F: UVスクロール / キーフレームUV をCBに書き込む
+//----------------------------------------------------------------------
+static void FillUV_1F(CBData* cb, CEffect* pEff)
+{
+    DWORD now = timeGetTime();
+    if (pEff->m_kfu || pEff->m_kfv) {
+        BOOL kfEnd;
+        if (pEff->m_kfu) pEff->m_kfu->GetValue(now, &pEff->m_uvAccum.x, &kfEnd);
+        if (pEff->m_kfv) pEff->m_kfv->GetValue(now, &pEff->m_uvAccum.y, &kfEnd);
+    } else {
+        if (pEff->m_lifeTime > 0 && (now - pEff->m_uvTimer) >= pEff->m_lifeTime) {
+            pEff->m_uvAccum = { 0.f, 0.f };
+            pEff->m_uvTimer = now;
+        }
+        pEff->m_uvAccum.x += pEff->m_uv.x;
+        pEff->m_uvAccum.y += pEff->m_uv.y;
+    }
+    cb->mUV[0] = pEff->m_uvAccum.x;
+    cb->mUV[1] = pEff->m_uvAccum.y;
+}
+
+//----------------------------------------------------------------------
+// 0x21: lifetimeから現在のフリップブックフレーム番号を返す
+//----------------------------------------------------------------------
+static int CalcFlipFrame(const CEffect* pEff, const CEffectModel* pEfm)
+{
+    if (pEff->m_lifeTime == 0 || pEfm->m_ModelTotal == 0) return 0;
+    DWORD elapsed = (timeGetTime() - pEff->m_uvTimer) % pEff->m_lifeTime;
+    int frame = (int)((float)elapsed / (float)pEff->m_lifeTime * (float)pEfm->m_ModelTotal);
+    return (frame < (int)pEfm->m_ModelTotal) ? frame : (int)pEfm->m_ModelTotal - 1;
+}
+
 //======================================================================
 // エフェクトモデル描画
 //======================================================================
@@ -1136,29 +1169,24 @@ void CArea::RenderEffectModels(float PosX, float PosY, float PosZ)
             ctx->IASetVertexBuffers(0, 1, &pEffMdl->m_lpVB, &stride, &offset);
             ctx->IASetIndexBuffer(pEffMdl->m_lpIB, DXGI_FORMAT_R16_UINT, 0);
 
+            UINT drawIdxCount = (UINT)pEffMdl->m_NumIndex;
+            UINT drawStartIdx  = 0;
             D3D11_MAPPED_SUBRESOURCE msr = {};
             ctx->Map(m_pCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr);
             CBData* cb = (CBData*)msr.pData;
             XMStoreFloat4x4(&cb->mWVP, XMMatrixTranspose(wvp));
-            {
-                DWORD now = timeGetTime();
-                if (pEffect->m_kfu || pEffect->m_kfv) {
-                    // キーフレームあり：時刻から直接補間
-                    BOOL kfEnd;
-                    if (pEffect->m_kfu) pEffect->m_kfu->GetValue(now, &pEffect->m_uvAccum.x, &kfEnd);
-                    if (pEffect->m_kfv) pEffect->m_kfv->GetValue(now, &pEffect->m_uvAccum.y, &kfEnd);
-                } else {
-                    // キーフレームなし：毎フレーム m_uv を累積、lifetime超過でリセット
-                    if (pEffect->m_lifeTime > 0 &&
-                        (now - pEffect->m_uvTimer) >= pEffect->m_lifeTime) {
-                        pEffect->m_uvAccum = { 0.f, 0.f };
-                        pEffect->m_uvTimer = now;
-                    }
-                    pEffect->m_uvAccum.x += pEffect->m_uv.x;
-                    pEffect->m_uvAccum.y += pEffect->m_uv.y;
-                }
-                cb->mUV[0] = pEffect->m_uvAccum.x;
-                cb->mUV[1] = pEffect->m_uvAccum.y;
+            switch (pEffMdl->m_ModelType) {
+            case 0x21: {
+                int frame   = CalcFlipFrame(pEffect, pEffMdl);
+                drawIdxCount = 6;
+                drawStartIdx = frame * 6;
+                cb->mUV[0]  = 0.f;
+                cb->mUV[1]  = 0.f;
+                break;
+            }
+            default:
+                FillUV_1F(cb, pEffect);
+                break;
             }
             cb->padding[0] = 0.f; cb->padding[1] = 0.f;
             cb->mCOL = pEffect->param[0x16]
@@ -1180,7 +1208,7 @@ void CArea::RenderEffectModels(float PosX, float PosY, float PosZ)
                 pEffMdl->m_pTexture ? pEffMdl->m_pTexture->GetTexture() : GetWhiteSRV();
             ctx->PSSetShaderResources(0, 1, &srv);
 
-            ctx->DrawIndexed((UINT)pEffMdl->m_NumIndex, 0, 0);
+            ctx->DrawIndexed(drawIdxCount, drawStartIdx, 0);
         }
         pEffect = (CEffect*)pEffect->Next;
     }
