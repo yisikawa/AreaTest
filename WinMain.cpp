@@ -689,10 +689,12 @@ static int PickNearestObjScreen(int mx, int my)
         OBJINFO* p = g_mArea.GetObjInfo(i);
         if (!p || !p->pAreaMesh) continue;
 
-        // 表示範囲カリング：CArea::Rendering() と同じ基準 (g_mAt からのXZ距離、Area.cpp参照)
+        // 表示範囲カリング：CArea::Rendering() と同じ基準 (Area.cpp:989-993)
+        // g_mAt からのXZ距離。fe & 0xfff0ffff == 0 以外（木系オブジェクト）は g_mDispTree を使用。
+        float DispArea = ((p->mObj.fe & 0xfff0ffff) == 0) ? g_mDispArea : g_mDispTree;
         float dx = p->mObj.fTransX - g_mAt.x;
         float dz = p->mObj.fTransZ - g_mAt.z;
-        if (fabsf(dx) > g_mDispArea || fabsf(dz) > g_mDispArea) continue;
+        if (fabsf(dx) > DispArea || fabsf(dz) > DispArea) continue;
 
         // ワールド座標。MoveToObject() と同じ Y反転規約 (m_mRootTransform に合わせる)
         XMVECTOR world = XMVectorSet(p->mObj.fTransX, -p->mObj.fTransY, p->mObj.fTransZ, 1.f);
