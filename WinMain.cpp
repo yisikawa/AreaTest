@@ -675,6 +675,50 @@ LRESULT CALLBACK Dlg1Proc(HWND in_hWnd, UINT in_Message, WPARAM in_wParam, LPARA
 }
 
 //======================================================================
+// メイン3Dウィンドウ ダブルクリックピッキング
+//======================================================================
+// クリック位置にスクリーン空間で最も近い OBJ インスタンスの objIdx を返す。
+// 候補が無ければ -1。
+static int PickNearestObjScreen(int mx, int my)
+{
+    XMMATRIX viewProj = XMMatrixMultiply(LoadM(g_mView), LoadM(g_mProjection));
+    int   bestIdx  = -1;
+    float bestDist = 0.f;
+
+    for (int i = 0; i < g_mArea.GetNObj(); i++) {
+        OBJINFO* p = g_mArea.GetObjInfo(i);
+        if (!p || !p->pAreaMesh) continue;
+
+        // 表示範囲カリング：CArea::Rendering() と同じ基準 (g_mAt からのXZ距離、Area.cpp参照)
+        float dx = p->mObj.fTransX - g_mAt.x;
+        float dz = p->mObj.fTransZ - g_mAt.z;
+        if (fabsf(dx) > g_mDispArea || fabsf(dz) > g_mDispArea) continue;
+
+        // ワールド座標。MoveToObject() と同じ Y反転規約 (m_mRootTransform に合わせる)
+        XMVECTOR world = XMVectorSet(p->mObj.fTransX, -p->mObj.fTransY, p->mObj.fTransZ, 1.f);
+        XMVECTOR clip  = XMVector4Transform(world, viewProj);
+        float w = XMVectorGetW(clip);
+        if (w <= 0.f) continue;            // カメラ背後
+        float z = XMVectorGetZ(clip);
+        if (z < 0.f || z > w) continue;    // near/far クリップ外
+
+        float ndcX = XMVectorGetX(clip) / w;
+        float ndcY = XMVectorGetY(clip) / w;
+        float sx = (ndcX + 1.f) * 0.5f * (float)g_mScreenWidth;
+        float sy = (1.f - ndcY) * 0.5f * (float)g_mScreenHeight;
+
+        float ddx = sx - (float)mx;
+        float ddy = sy - (float)my;
+        float distSq = ddx * ddx + ddy * ddy;
+        if (bestIdx < 0 || distSq < bestDist) {
+            bestDist = distSq;
+            bestIdx  = i;
+        }
+    }
+    return bestIdx;
+}
+
+//======================================================================
 // メインウィンドウプロシージャ
 //======================================================================
 LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
@@ -828,6 +872,38 @@ LRESULT CALLBACK WinProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam )
         }
         x1 = x2; y1 = y2;
         break;
+
+    case WM_LBUTTONDBLCLK: {
+        int mx = (short)LOWORD(lParam);
+        int my = (short)HIWORD(lParam);
+        int objIdx = PickNearestObjScreen(mx, my);
+        if (objIdx < 0) break;
+        OBJINFO* p = g_mArea.GetObjInfo(objIdx);
+        if (!p || !p->pAreaMesh) break;
+
+        // Area Select Window の COMBO3 (メッシュ一覧) を出現順で同期
+        int meshIdx = -1;
+        {
+            CAreaMesh* pMesh = (CAreaMesh*)g_mArea.GetAreaMeshs().Top();
+            for (int idx = 0; pMesh; idx++, pMesh = (CAreaMesh*)pMesh->Next) {
+                if (pMesh == p->pAreaMesh) { meshIdx = idx; break; }
+            }
+        }
+        if (meshIdx >= 0)
+            SendMessage(GetDlgItem(hDlg1, IDC_COMBO3), CB_SETCURSEL, meshIdx, 0);
+
+        SetCanvasMesh(p->pAreaMesh);    // g_objInstances を再構築
+
+        int instIdx = -1;
+        for (int k = 0; k < (int)g_objInstances.size(); k++) {
+            if (g_objInstances[k] == objIdx) { instIdx = k; break; }
+        }
+        if (instIdx >= 0)
+            MoveToObjInst(instIdx);
+        else
+            MoveToObject(objIdx);       // フォールバック
+        break;
+    }
 
     case WM_COMMAND:
         if (LOWORD(wParam) == ID_MNU_OASPD) ShowWindow(hDlg1, SW_SHOW);
